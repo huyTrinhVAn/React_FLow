@@ -1,69 +1,90 @@
-import React from "react";
-import { Steps } from "@cloudscape-design/components";
+import React, { useEffect, useState } from "react";
+import Select from "@cloudscape-design/components/select";
+import type { SelectProps } from "@cloudscape-design/components/select";
 
 interface FlowSimulatorProps {
   StartAction: string;
   Actions: any[];
 }
 
-/**
- * FlowSimulator component for AWS Connect Contact Flow JSON.
- * Parses and renders each action step from StartAction through Transitions.
- */
 const FlowSimulator: React.FC<FlowSimulatorProps> = ({ StartAction, Actions }) => {
-  const flowMap = new Map<string, any>();
-  Actions.forEach((action) => {
-    flowMap.set(action.Identifier, action);
-  });
+  const [flowMap, setFlowMap] = useState<Map<string, any>>(new Map());
+  const [sections, setSections] = useState<any[][]>([[]]);
+  const [activeNode, setActiveNode] = useState<any | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
+  const [selectedOption, setSelectedOption] = useState<SelectProps.Option | null>(null);
 
-  const steps: any[] = [];
-  const visited = new Set<string>();
-  let currentNode = flowMap.get(StartAction);
+  useEffect(() => {
+    const map = new Map<string, any>();
+    Actions.forEach((action) => {
+      map.set(action.Identifier, action);
+    });
+    setFlowMap(map);
+    setSections([[]]);
+    setActiveNode(map.get(StartAction));
+    setIsPaused(false);
+  }, [StartAction, Actions]);
 
-  while (currentNode && !visited.has(currentNode.Identifier)) {
-    visited.add(currentNode.Identifier);
+  useEffect(() => {
+    if (!isPaused && activeNode) {
+      setSections((prevSections) => {
+        const newSections = [...prevSections];
+        const currentSection = [...newSections[newSections.length - 1], activeNode];
+        newSections[newSections.length - 1] = currentSection;
+        return newSections;
+      });
 
-    const next = currentNode.Transitions?.NextAction;
-    const errors = currentNode.Transitions?.Errors;
+      if (activeNode.Transitions?.Conditions) {
+        setIsPaused(true);
+      } else if (activeNode.Transitions?.NextAction) {
+        setActiveNode(flowMap.get(activeNode.Transitions.NextAction));
+      } else {
+        setActiveNode(null);
+      }
+    }
+  }, [activeNode, isPaused, flowMap]);
 
-    const block = (
-      <div>
-        <p><strong>ID:</strong> {currentNode.Identifier}</p>
-        <p><strong>Type:</strong> {currentNode.Type}</p>
-        {currentNode.Parameters && Object.keys(currentNode.Parameters).length > 0 && (
-          <div>
-            <strong>Parameters:</strong>
-            <pre>{JSON.stringify(currentNode.Parameters, null, 2)}</pre>
-          </div>
-        )}
-        {errors && errors.length > 0 && (
-          <div>
-            <strong>Error Transitions:</strong>
+  const handleCondition = (condition: SelectProps.Option) => {
+    setIsPaused(false);
+    setSelectedOption(null);
+    setSections((prevSections) => [...prevSections, []]);
+    if (activeNode)
+      setActiveNode(flowMap.get(condition.value));
+  };
+
+  return (
+    <div>
+      <h3>🧭 Flow Simulator</h3>
+
+      {sections.map((section, sectionIndex) => {
+        const lastItem = section[section.length - 1];
+        return (
+          <div key={sectionIndex} style={{ marginBottom: 20 }}>
+            <strong>Section {sectionIndex + 1}</strong>
             <ul>
-              {errors.map((err: any, index: number) => (
+              {section.map((node, index) => (
                 <li key={index}>
-                  {err.ErrorType}: <code>{err.NextAction}</code>
+                  <strong>{node.Type}</strong> — {node.Identifier}
                 </li>
               ))}
             </ul>
+            {isPaused && lastItem?.Transitions?.Conditions && sectionIndex === sections.length - 1 && (
+              <Select
+                selectedOption={selectedOption}
+                onChange={({ detail }) => {
+                  setSelectedOption(detail.selectedOption);
+                  handleCondition(detail.selectedOption);
+                }}
+                options={lastItem.Transitions.Conditions.map((condition: any, i: number) => ({
+                  label: condition.Condition?.Operands?.[0] || `Condition ${i + 1}`,
+                  value: condition.NextAction
+                }))}
+                placeholder="Select a condition"
+              />
+            )}
           </div>
-        )}
-      </div>
-    );
-
-    steps.push({
-      status: "success",
-      title: currentNode.Type,
-      content: block,
-    });
-
-    currentNode = next ? flowMap.get(next) : null;
-  }
-
-  return (
-    <div style={{ marginTop: 20 }}>
-      <h3>📞 Simulated Contact Flow (AWS)</h3>
-      <Steps steps={steps} />
+        );
+      })}
     </div>
   );
 };
