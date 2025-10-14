@@ -8,7 +8,16 @@
 </head>
 <body>
     <h4 class="partialHeader" id="awsSearchHeader">Platform Metrics</h4>
-    
+        <!-- Thêm đoạn này trước thẻ <table> -->
+    <div style="margin-bottom: 10px;">
+        <label for="statusFilter">Filter by Status: </label>
+        <select id="statusFilter" onchange="filterTable()">
+            <option value="all">All</option>
+            <option value="healthy">Healthy Only</option>
+            <option value="unhealthy">Unhealthy Only</option>
+        </select>
+    </div>
+
     <table id="metricsTable" border="1">
         <thead>
             <tr>
@@ -40,44 +49,65 @@
             return obj;
         }
 
-        function loadTable(data) {
-            const tbody = document.getElementById('tableBody');
-            tbody.innerHTML = ''; // Xóa nội dung cũ
-            
-            // Lặp qua từng item trong array
-            data.forEach(item => {
-                const row = document.createElement('tr');
-                
-                row.innerHTML = `
-                    <td>${item.account}</td>
-                    <td>${item.date}</td>
-                    <td>${item.item}</td>
-                    <td>${item.item_type}</td>
-                    <td>${item.platform}</td>
-                    <td>${item.reason}</td>
-                    <td>${item.status}</td>
-                    <td>${item._id}</td>
-                `;
-                
-                tbody.appendChild(row);
-            });
-        }
+// Biến global để lưu dữ liệu gốc
+let originalData = [];
 
-        // Gọi hàm khi trang load
-        fetch_data().then(data => {
-            console.log("result", data);
-            loadTable(data);
-        });
-        function getStatusColor(status) {
+// Cập nhật function loadTable
+function loadTable(data, filterStatus = 'all') {
+    const tbody = document.getElementById('tableBody');
+    tbody.innerHTML = '';
+    
+    // Lọc dữ liệu theo status
+    let filteredData = data;
+    if (filterStatus !== 'all') {
+        filteredData = data.filter(item => 
+            item.status.toLowerCase() === filterStatus
+        );
+    }
+    
+    filteredData.forEach(item => {
+        const row = document.createElement('tr');
+        
+        row.innerHTML = `
+            <td>${item.account}</td>
+            <td>${item.date}</td>
+            <td>${item.item}</td>
+            <td>${item.item_type}</td>
+            <td>${item.platform}</td>
+            <td>${item.reason}</td>
+            <td style="color: ${getStatusColor(item.status)}">${item.status}</td>
+            <td>${item._id}</td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+}
+
+// Function filter khi thay đổi dropdown
+function filterTable() {
+    const filterValue = document.getElementById('statusFilter').value;
+    loadTable(originalData, filterValue);
+}
+
+// Cập nhật function getStatusColor nếu chưa có
+function getStatusColor(status) {
     const statusLower = status.toLowerCase();
     if (statusLower === 'healthy') {
         return 'green';
     } else if (statusLower === 'unhealthy') {
         return 'red';
     } else {
-        return 'black'; // màu mặc định
+        return 'black';
     }
 }
+
+// Cập nhật phần load dữ liệu ban đầu
+fetch_data().then(data => {
+    console.log("result", data);
+    originalData = data; // Lưu dữ liệu gốc
+    loadTable(data);
+});
+
     </script>
 </body>
 </html>
