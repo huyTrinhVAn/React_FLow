@@ -68,6 +68,16 @@
             console.log("result", data);
             loadTable(data);
         });
+        function getStatusColor(status) {
+    const statusLower = status.toLowerCase();
+    if (statusLower === 'healthy') {
+        return 'green';
+    } else if (statusLower === 'unhealthy') {
+        return 'red';
+    } else {
+        return 'black'; // màu mặc định
+    }
+}
     </script>
 </body>
 </html>
