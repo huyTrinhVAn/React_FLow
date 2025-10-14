@@ -5,28 +5,52 @@
     <link rel="stylesheet" href="/css/modal.css">
     <link rel="stylesheet" href="/css/datatables.css">
     <script src="/js/datatables.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            border: 1px solid #ccc;
+            padding: 12px 15px;
+            text-align: left;
+        }
+        
+        th {
+            background-color: #870e40;
+            color: #f2f2f2;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+    </style>
 </head>
 <body>
     <h4 class="partialHeader" id="awsSearchHeader">Platform Metrics</h4>
-    <!-- Thêm đoạn này trước dropdown filter -->
-<div style="margin-bottom: 20px; text-align: center;">
-    <h4>Status Distribution</h4>
-    <canvas id="statusChart" width="400" height="200"></canvas>
-</div>
-
-        <!-- Thêm đoạn này trước thẻ <table> -->
-<div style="margin-bottom: 10px;">
-    <label for="searchInput">Search: </label>
-    <input type="text" id="searchInput" placeholder="Search by account, item, platform..." onkeyup="searchTable()" style="margin-right: 15px;">
     
-    <label for="statusFilter">Filter by Status: </label>
-    <select id="statusFilter" onchange="filterTable()">
-        <option value="all">All</option>
-        <option value="healthy">Healthy Only</option>
-        <option value="unhealthy">Unhealthy Only</option>
-    </select>
-</div>
+    <!-- Chart -->
+    <div style="margin-bottom: 20px; text-align: center;">
+        <h4>Status Distribution</h4>
+        <canvas id="statusChart" width="400" height="200"></canvas>
+    </div>
 
+    <!-- Search and Filter -->
+    <div style="margin-bottom: 10px;">
+        <label for="searchInput">Search: </label>
+        <input type="text" id="searchInput" placeholder="Search by account, item, platform..." onkeyup="searchTable()" style="margin-right: 15px;">
+        
+        <label for="statusFilter">Filter by Status: </label>
+        <select id="statusFilter" onchange="filterTable()">
+            <option value="all">All</option>
+            <option value="healthy">Healthy Only</option>
+            <option value="unhealthy">Unhealthy Only</option>
+        </select>
+    </div>
+
+    <!-- Table -->
     <table id="metricsTable" border="1">
         <thead>
             <tr>
@@ -44,200 +68,199 @@
             <!-- Dữ liệu sẽ được thêm vào đây -->
         </tbody>
     </table>
-    <!-- Thêm phần này sau table -->
-<div id="pagination" style="text-align: center; margin-top: 10px;">
-    <span id="pageInfo"></span>
-    <button id="prevBtn" onclick="prevPage()">Previous</button>
-    <button id="nextBtn" onclick="nextPage()">Next</button>
-</div>
-
+    
+    <!-- Pagination -->
+    <div id="pagination" style="text-align: center; margin-top: 10px;">
+        <span id="pageInfo"></span>
+        <button id="prevBtn" onclick="prevPage()">Previous</button>
+        <button id="nextBtn" onclick="nextPage()">Next</button>
+    </div>
 
     <script>
-    async function fetch_data() {
-        //Define fetch query variables
-        var endpoint = "platformmetrics";
-        var query = "";
-        
-        const response = await fetch('/' + endpoint + query);
-        const obj = await response.json();
-        
-        console.log("fetched data", obj);
-        return obj;
-    }
-
-    // Global variables
-    let statusChart = null;
-    let originalData = [];
-    let currentPage = 1;
-    const rowsPerPage = 10;
-
-    // Function tạo biểu đồ tròn
-    function createStatusChart(data) {
-        let healthyCount = 0;
-        let unhealthyCount = 0;
-        
-        data.forEach(item => {
-            if (item.status.toLowerCase() === 'healthy') {
-                healthyCount++;
-            } else if (item.status.toLowerCase() === 'unhealthy') {
-                unhealthyCount++;
-            }
-        });
-        
-        const ctx = document.getElementById('statusChart').getContext('2d');
-        
-        if (statusChart) {
-            statusChart.destroy();
+        async function fetch_data() {
+            //Define fetch query variables
+            var endpoint = "platformmetrics";
+            var query = "";
+            
+            const response = await fetch('/' + endpoint + query);
+            const obj = await response.json();
+            
+            console.log("fetched data", obj);
+            return obj;
         }
-        
-        statusChart = new Chart(ctx, {
-            type: 'pie',
-            data: {
-                labels: ['Healthy', 'Unhealthy'],
-                datasets: [{
-                    data: [healthyCount, unhealthyCount],
-                    backgroundColor: ['green', 'red'],
-                    borderWidth: 2,
-                    borderColor: '#fff'
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
+
+        // Global variables
+        let statusChart = null;
+        let originalData = [];
+        let currentPage = 1;
+        const rowsPerPage = 10;
+
+        // Function tạo biểu đồ tròn
+        function createStatusChart(data) {
+            let healthyCount = 0;
+            let unhealthyCount = 0;
+            
+            data.forEach(item => {
+                if (item.status.toLowerCase() === 'healthy') {
+                    healthyCount++;
+                } else if (item.status.toLowerCase() === 'unhealthy') {
+                    unhealthyCount++;
+                }
+            });
+            
+            const ctx = document.getElementById('statusChart').getContext('2d');
+            
+            if (statusChart) {
+                statusChart.destroy();
+            }
+            
+            statusChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['Healthy', 'Unhealthy'],
+                    datasets: [{
+                        data: [healthyCount, unhealthyCount],
+                        backgroundColor: ['green', 'red'],
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
                     }
                 }
+            });
+        }
+
+        // Function get filtered data
+        function getFilteredData() {
+            const searchTerm = document.getElementById('searchInput').value.trim();
+            const filterValue = document.getElementById('statusFilter').value;
+            
+            let filteredData = originalData;
+            
+            // Filter by status
+            if (filterValue !== 'all') {
+                filteredData = filteredData.filter(item => 
+                    item.status.toLowerCase() === filterValue
+                );
             }
-        });
-    }
-
-    // Function get filtered data
-    function getFilteredData() {
-        const searchTerm = document.getElementById('searchInput').value.trim();
-        const filterValue = document.getElementById('statusFilter').value;
-        
-        let filteredData = originalData;
-        
-        // Filter by status
-        if (filterValue !== 'all') {
-            filteredData = filteredData.filter(item => 
-                item.status.toLowerCase() === filterValue
-            );
+            
+            // Filter by search term
+            if (searchTerm !== '') {
+                filteredData = filteredData.filter(item => 
+                    item.account.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    item.item.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    item.platform.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    item.reason.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    item.item_type.toLowerCase().includes(searchTerm.toLowerCase())
+                );
+            }
+            
+            return filteredData;
         }
-        
-        // Filter by search term
-        if (searchTerm !== '') {
-            filteredData = filteredData.filter(item => 
-                item.account.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                item.item.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                item.platform.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                item.reason.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                item.item_type.toLowerCase().includes(searchTerm.toLowerCase())
-            );
+
+        // Function load table với pagination
+        function loadTable() {
+            const filteredData = getFilteredData();
+            
+            // Pagination calculation
+            const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+            const startIndex = (currentPage - 1) * rowsPerPage;
+            const endIndex = Math.min(startIndex + rowsPerPage, filteredData.length);
+            const paginatedData = filteredData.slice(startIndex, endIndex);
+            
+            // Render table
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            
+            paginatedData.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${item.account}</td>
+                    <td>${item.date}</td>
+                    <td>${item.item}</td>
+                    <td>${item.item_type}</td>
+                    <td>${item.platform}</td>
+                    <td>${item.reason}</td>
+                    <td style="color: ${getStatusColor(item.status)}">${item.status}</td>
+                    <td>${item._id}</td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            // Update pagination controls
+            updatePaginationControls(totalPages, filteredData.length);
+            
+            // Update chart
+            createStatusChart(filteredData);
         }
-        
-        return filteredData;
-    }
 
-    // Function load table với pagination
-    function loadTable() {
-        const filteredData = getFilteredData();
-        
-        // Pagination calculation
-        const totalPages = Math.ceil(filteredData.length / rowsPerPage);
-        const startIndex = (currentPage - 1) * rowsPerPage;
-        const endIndex = Math.min(startIndex + rowsPerPage, filteredData.length);
-        const paginatedData = filteredData.slice(startIndex, endIndex);
-        
-        // Render table
-        const tbody = document.getElementById('tableBody');
-        tbody.innerHTML = '';
-        
-        paginatedData.forEach(item => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${item.account}</td>
-                <td>${item.date}</td>
-                <td>${item.item}</td>
-                <td>${item.item_type}</td>
-                <td>${item.platform}</td>
-                <td>${item.reason}</td>
-                <td style="color: ${getStatusColor(item.status)}">${item.status}</td>
-                <td>${item._id}</td>
-            `;
-            tbody.appendChild(row);
-        });
-        
-        // Update pagination controls
-        updatePaginationControls(totalPages, filteredData.length);
-        
-        // Update chart
-        createStatusChart(filteredData);
-    }
+        // Function update pagination controls
+        function updatePaginationControls(totalPages, totalItems) {
+            const pageInfo = document.getElementById('pageInfo');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            
+            pageInfo.textContent = `Page ${currentPage} of ${totalPages} (Total: ${totalItems} items)`;
+            
+            prevBtn.disabled = currentPage === 1;
+            nextBtn.disabled = currentPage === totalPages || totalPages === 0;
+        }
 
-    // Function update pagination controls
-    function updatePaginationControls(totalPages, totalItems) {
-        const pageInfo = document.getElementById('pageInfo');
-        const prevBtn = document.getElementById('prevBtn');
-        const nextBtn = document.getElementById('nextBtn');
-        
-        pageInfo.textContent = `Page ${currentPage} of ${totalPages} (Total: ${totalItems} items)`;
-        
-        prevBtn.disabled = currentPage === 1;
-        nextBtn.disabled = currentPage === totalPages || totalPages === 0;
-    }
-
-    // Function search table
-    function searchTable() {
-        currentPage = 1; // Reset to page 1
-        loadTable();
-    }
-
-    // Function filter table
-    function filterTable() {
-        currentPage = 1; // Reset to page 1
-        loadTable();
-    }
-
-    // Function previous page
-    function prevPage() {
-        if (currentPage > 1) {
-            currentPage--;
+        // Function search table
+        function searchTable() {
+            currentPage = 1; // Reset to page 1
             loadTable();
         }
-    }
 
-    // Function next page
-    function nextPage() {
-        const filteredData = getFilteredData();
-        const totalPages = Math.ceil(filteredData.length / rowsPerPage);
-        
-        if (currentPage < totalPages) {
-            currentPage++;
+        // Function filter table
+        function filterTable() {
+            currentPage = 1; // Reset to page 1
             loadTable();
         }
-    }
 
-    // Function get status color
-    function getStatusColor(status) {
-        const statusLower = status.toLowerCase();
-        if (statusLower === 'healthy') {
-            return 'green';
-        } else if (statusLower === 'unhealthy') {
-            return 'red';
-        } else {
-            return 'black';
+        // Function previous page
+        function prevPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                loadTable();
+            }
         }
-    }
 
-    // Load initial data
-    fetch_data().then(data => {
-        console.log("result", data);
-        originalData = data;
-        loadTable();
-    });
-</script>
+        // Function next page
+        function nextPage() {
+            const filteredData = getFilteredData();
+            const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+            
+            if (currentPage < totalPages) {
+                currentPage++;
+                loadTable();
+            }
+        }
 
+        // Function get status color
+        function getStatusColor(status) {
+            const statusLower = status.toLowerCase();
+            if (statusLower === 'healthy') {
+                return 'green';
+            } else if (statusLower === 'unhealthy') {
+                return 'red';
+            } else {
+                return 'black';
+            }
+        }
+
+        // Load initial data
+        fetch_data().then(data => {
+            console.log("result", data);
+            originalData = data;
+            loadTable();
+        });
+    </script>
 </body>
 </html>
