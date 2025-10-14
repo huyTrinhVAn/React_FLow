@@ -15,14 +15,17 @@
 </div>
 
         <!-- Thêm đoạn này trước thẻ <table> -->
-    <div style="margin-bottom: 10px;">
-        <label for="statusFilter">Filter by Status: </label>
-        <select id="statusFilter" onchange="filterTable()">
-            <option value="all">All</option>
-            <option value="healthy">Healthy Only</option>
-            <option value="unhealthy">Unhealthy Only</option>
-        </select>
-    </div>
+<div style="margin-bottom: 10px;">
+    <label for="searchInput">Search: </label>
+    <input type="text" id="searchInput" placeholder="Search by account, item, platform..." onkeyup="searchTable()" style="margin-right: 15px;">
+    
+    <label for="statusFilter">Filter by Status: </label>
+    <select id="statusFilter" onchange="filterTable()">
+        <option value="all">All</option>
+        <option value="healthy">Healthy Only</option>
+        <option value="unhealthy">Unhealthy Only</option>
+    </select>
+</div>
 
     <table id="metricsTable" border="1">
         <thead>
