@@ -130,6 +130,16 @@ function loadTable(data, filterStatus = 'all') {
             item.status.toLowerCase() === filterStatus
         );
     }
+        // Lọc theo search term
+    if (searchTerm.trim() !== '') {
+        filteredData = filteredData.filter(item => 
+            item.account.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            item.item.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            item.platform.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            item.reason.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            item.item_type.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }
     
     // Tính toán pagination
     const totalPages = Math.ceil(filteredData.length / rowsPerPage);
