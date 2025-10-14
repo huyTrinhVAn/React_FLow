@@ -207,6 +207,13 @@ function nextPage() {
         filterTable(); // Reload với filter hiện tại
     }
 }
+function searchTable() {
+    currentPage = 1; // Reset về trang 1 khi search
+    const searchTerm = document.getElementById('searchInput').value;
+    const filterValue = document.getElementById('statusFilter').value;
+    loadTable(originalData, filterValue, searchTerm);
+}
+
 
 // Function filter khi thay đổi dropdown
 function filterTable() {
