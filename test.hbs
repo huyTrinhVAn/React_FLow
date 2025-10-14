@@ -41,6 +41,13 @@
             <!-- Dữ liệu sẽ được thêm vào đây -->
         </tbody>
     </table>
+    <!-- Thêm phần này sau table -->
+<div id="pagination" style="text-align: center; margin-top: 10px;">
+    <span id="pageInfo"></span>
+    <button id="prevBtn" onclick="prevPage()">Previous</button>
+    <button id="nextBtn" onclick="nextPage()">Next</button>
+</div>
+
 
     <script>
         async function fetch_data() {
