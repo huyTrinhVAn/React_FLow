@@ -1,262 +1,31 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Platform Metrics Dashboard</title>
+    <title>Platform Metrics</title>
     <link rel="stylesheet" href="/css/modal.css">
     <link rel="stylesheet" href="/css/datatables.css">
     <script src="/js/datatables.js"></script>
-    <style>
-        /* Main Styles */
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            min-height: 100vh;
-            color: #333;
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-            overflow: hidden;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 25px;
-            text-align: center;
-            position: relative;
-        }
-
-        .header h1 {
-            margin: 0;
-            font-size: 2.2rem;
-            font-weight: 300;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-        }
-
-        .refresh-btn {
-            position: absolute;
-            right: 25px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: rgba(255,255,255,0.2);
-            border: 2px solid rgba(255,255,255,0.3);
-            color: white;
-            padding: 10px 20px;
-            border-radius: 25px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .refresh-btn:hover {
-            background: rgba(255,255,255,0.3);
-            transform: translateY(-50%) scale(1.05);
-        }
-
-        .table-container {
-            padding: 30px;
-            overflow-x: auto;
-        }
-
-        .metrics-table {
-            width: 100%;
-            border-collapse: collapse;
-            background: white;
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        }
-
-        .metrics-table th {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-            color: white;
-            padding: 15px 12px;
-            text-align: left;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            font-size: 0.9rem;
-        }
-
-        .metrics-table td {
-            padding: 15px 12px;
-            border-bottom: 1px solid #eee;
-            transition: background-color 0.3s ease;
-        }
-
-        .metrics-table tbody tr:hover {
-            background-color: #f8f9ff;
-            transform: scale(1.01);
-            transition: all 0.2s ease;
-        }
-
-        .metrics-table tbody tr:nth-child(even) {
-            background-color: #fafbff;
-        }
-
-        /* Status Badges */
-        .status-badge {
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .status-alarm {
-            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
-            color: white;
-            box-shadow: 0 2px 8px rgba(255, 107, 107, 0.3);
-        }
-
-        .status-ok {
-            background: linear-gradient(135deg, #51cf66, #40c057);
-            color: white;
-            box-shadow: 0 2px 8px rgba(81, 207, 102, 0.3);
-        }
-
-        .status-unknown {
-            background: linear-gradient(135deg, #868e96, #6c757d);
-            color: white;
-            box-shadow: 0 2px 8px rgba(134, 142, 150, 0.3);
-        }
-
-        /* Platform Tags */
-        .platform-tag {
-            background: linear-gradient(135deg, #a8edea, #fed6e3);
-            color: #333;
-            padding: 4px 10px;
-            border-radius: 15px;
-            font-size: 0.8rem;
-            font-weight: 600;
-        }
-
-        /* Account Info */
-        .account-info {
-            font-family: 'Courier New', monospace;
-            background: #f1f3f4;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 0.85rem;
-            color: #495057;
-        }
-
-        /* Timestamp */
-        .timestamp {
-            color: #6c757d;
-            font-size: 0.9rem;
-            font-style: italic;
-        }
-
-        /* Reason Text */
-        .reason-text {
-            max-width: 400px;
-            line-height: 1.4;
-            color: #495057;
-        }
-
-        /* Loading State */
-        .loading {
-            text-align: center;
-            padding: 50px;
-            color: #6c757d;
-        }
-
-        .loading::after {
-            content: '';
-            display: inline-block;
-            width: 30px;
-            height: 30px;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #4facfe;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-left: 10px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        /* Error State */
-        .error {
-            text-align: center;
-            padding: 50px;
-            color: #dc3545;
-            background: #f8d7da;
-            border-radius: 10px;
-            margin: 20px;
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .header h1 {
-                font-size: 1.5rem;
-            }
-            
-            .refresh-btn {
-                position: static;
-                transform: none;
-                margin-top: 15px;
-            }
-            
-            .metrics-table th,
-            .metrics-table td {
-                padding: 10px 8px;
-                font-size: 0.85rem;
-            }
-            
-            .reason-text {
-                max-width: 200px;
-            }
-        }
-    </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1 id="awsSearchHeader">Platform Metrics Dashboard</h1>
-            <button class="refresh-btn" onclick="refreshData()">🔄 Refresh</button>
-        </div>
-
-        <div class="table-container">
-            <div id="loading" class="loading" style="display: none;">
-                Đang tải dữ liệu...
-            </div>
-
-            <div id="error" class="error" style="display: none;">
-                Có lỗi xảy ra khi tải dữ liệu. Vui lòng thử lại!
-            </div>
-
-            <table id="metricsTable" class="metrics-table" style="display: none;">
-                <thead>
-                    <tr>
-                        <th>Account</th>
-                        <th>Date</th>
-                        <th>Item</th>
-                        <th>Type</th>
-                        <th>Platform</th>
-                        <th>Status</th>
-                        <th>Reason</th>
-                        <th>ID</th>
-                    </tr>
-                </thead>
-                <tbody id="metricsTableBody">
-                    <!-- Data will be populated here -->
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <h4 class="partialHeader" id="awsSearchHeader">Platform Metrics</h4>
+    
+    <table id="metricsTable" border="1">
+        <thead>
+            <tr>
+                <th>Account</th>
+                <th>Date</th>
+                <th>Item</th>
+                <th>Item Type</th>
+                <th>Platform</th>
+                <th>Reason</th>
+                <th>Status</th>
+                <th>ID</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody">
+            <!-- Dữ liệu sẽ được thêm vào đây -->
+        </tbody>
+    </table>
 
     <script>
         async function fetch_data() {
@@ -271,114 +40,34 @@
             return obj;
         }
 
-        function formatStatus(status) {
-            const statusLower = status.toLowerCase();
-            if (statusLower.includes('alarm')) {
-                return `<span class="status-badge status-alarm">${status}</span>`;
-            } else if (statusLower.includes('ok')) {
-                return `<span class="status-badge status-ok">${status}</span>`;
-            } else {
-                return `<span class="status-badge status-unknown">${status}</span>`;
-            }
-        }
-
-        function formatDate(dateString) {
-            const date = new Date(dateString);
-            return `<span class="timestamp">${date.toLocaleString('vi-VN')}</span>`;
-        }
-
-        function formatAccount(account) {
-            return `<span class="account-info">${account}</span>`;
-        }
-
-        function formatPlatform(platform) {
-            return `<span class="platform-tag">${platform}</span>`;
-        }
-
-        function formatReason(reason) {
-            return `<div class="reason-text">${reason}</div>`;
-        }
-
-        function populateTable(data) {
-            const tableBody = document.getElementById('metricsTableBody');
-            tableBody.innerHTML = '';
-
-            if (!data || data.length === 0) {
-                tableBody.innerHTML = `
-                    <tr>
-                        <td colspan="8" style="text-align: center; padding: 50px; color: #6c757d;">
-                            Không có dữ liệu để hiển thị
-                        </td>
-                    </tr>
-                `;
-                return;
-            }
-
+        function loadTable(data) {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = ''; // Xóa nội dung cũ
+            
+            // Lặp qua từng item trong array
             data.forEach(item => {
                 const row = document.createElement('tr');
+                
                 row.innerHTML = `
-                    <td>${formatAccount(item.account)}</td>
-                    <td>${formatDate(item.date)}</td>
-                    <td>${item.item || 'N/A'}</td>
-                    <td>${item.item_type || 'N/A'}</td>
-                    <td>${formatPlatform(item.platform)}</td>
-                    <td>${formatStatus(item.status)}</td>
-                    <td>${formatReason(item.reason || 'No reason provided')}</td>
-                    <td><code>${item._id}</code></td>
+                    <td>${item.account}</td>
+                    <td>${item.date}</td>
+                    <td>${item.item}</td>
+                    <td>${item.item_type}</td>
+                    <td>${item.platform}</td>
+                    <td>${item.reason}</td>
+                    <td>${item.status}</td>
+                    <td>${item._id}</td>
                 `;
-                tableBody.appendChild(row);
+                
+                tbody.appendChild(row);
             });
         }
 
-        function showLoading() {
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('error').style.display = 'none';
-            document.getElementById('metricsTable').style.display = 'none';
-        }
-
-        function showError() {
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('error').style.display = 'block';
-            document.getElementById('metricsTable').style.display = 'none';
-        }
-
-        function showTable() {
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('error').style.display = 'none';
-            document.getElementById('metricsTable').style.display = 'table';
-        }
-
-        async function loadData() {
-            try {
-                showLoading();
-                
-                const data = await fetch_data();
-                
-                if (data && Array.isArray(data)) {
-                    populateTable(data);
-                    showTable();
-                } else {
-                    throw new Error('Invalid data format');
-                }
-                
-            } catch (error) {
-                console.error('Error loading data:', error);
-                showError();
-            }
-        }
-
-        function refreshData() {
-            console.log('Refreshing data...');
-            loadData();
-        }
-
-        // Load data when page loads
-        window.addEventListener('load', function() {
-            loadData();
+        // Gọi hàm khi trang load
+        fetch_data().then(data => {
+            console.log("result", data);
+            loadTable(data);
         });
-
-        // Auto refresh every 5 minutes
-        setInterval(refreshData, 5 * 60 * 1000);
     </script>
 </body>
 </html>
