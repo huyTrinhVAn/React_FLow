@@ -8,6 +8,12 @@
 </head>
 <body>
     <h4 class="partialHeader" id="awsSearchHeader">Platform Metrics</h4>
+    <!-- Thêm đoạn này trước dropdown filter -->
+<div style="margin-bottom: 20px; text-align: center;">
+    <h4>Status Distribution</h4>
+    <canvas id="statusChart" width="400" height="200"></canvas>
+</div>
+
         <!-- Thêm đoạn này trước thẻ <table> -->
     <div style="margin-bottom: 10px;">
         <label for="statusFilter">Filter by Status: </label>
@@ -48,6 +54,54 @@
             console.log("fetched data", obj);
             return obj;
         }
+// Biến global để lưu chart instance
+let statusChart = null;
+
+// Function tạo biểu đồ tròn
+function createStatusChart(data) {
+    // Đếm healthy và unhealthy
+    let healthyCount = 0;
+    let unhealthyCount = 0;
+    
+    data.forEach(item => {
+        if (item.status.toLowerCase() === 'healthy') {
+            healthyCount++;
+        } else if (item.status.toLowerCase() === 'unhealthy') {
+            unhealthyCount++;
+        }
+    });
+    
+    const ctx = document.getElementById('statusChart').getContext('2d');
+    
+    // Xóa chart cũ nếu có
+    if (statusChart) {
+        statusChart.destroy();
+    }
+    
+    statusChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: ['Healthy', 'Unhealthy'],
+            datasets: [{
+                data: [healthyCount, unhealthyCount],
+                backgroundColor: [
+                    'green',
+                    'red'
+                ],
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+}
 
 // Biến global để lưu dữ liệu gốc
 let originalData = [];
@@ -106,6 +160,7 @@ fetch_data().then(data => {
     console.log("result", data);
     originalData = data; // Lưu dữ liệu gốc
     loadTable(data);
+    createStatusChart(data); 
 });
 
     </script>
