@@ -51,18 +51,26 @@
 
     <script>
         async function fetch_data() {
-            //Define fetch query variables
-            var endpoint = "platformmetrics";
-            var query = "";
-            
-            const response = await fetch('/' + endpoint + query);
-            const obj = await response.json();
-            
-            console.log("fetched data", obj);
-            return obj;
-        }
+    //Define fetch query variables
+    var endpoint = "platformmetrics";
+    var query = "";
+    
+    const response = await fetch('/' + endpoint + query);
+    const obj = await response.json();
+    
+    console.log("fetched data", obj);
+    return obj;
+}
+
 // Biến global để lưu chart instance
 let statusChart = null;
+
+// Biến global để lưu dữ liệu gốc
+let originalData = [];
+
+// Biến pagination
+let currentPage = 1;
+const rowsPerPage = 10; // Hiển thị 10 rows mỗi trang
 
 // Function tạo biểu đồ tròn
 function createStatusChart(data) {
@@ -110,15 +118,9 @@ function createStatusChart(data) {
     });
 }
 
-// Biến global để lưu dữ liệu gốc
-let originalData = [];
-
-// Cập nhật function loadTable
+// Cập nhật function loadTable với pagination
 function loadTable(data, filterStatus = 'all') {
-    const tbody = document.getElementById('tableBody');
-    tbody.innerHTML = '';
-    
-    // Lọc dữ liệu theo status
+    // Lọc dữ liệu theo status trước
     let filteredData = data;
     if (filterStatus !== 'all') {
         filteredData = data.filter(item => 
@@ -126,7 +128,17 @@ function loadTable(data, filterStatus = 'all') {
         );
     }
     
-    filteredData.forEach(item => {
+    // Tính toán pagination
+    const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+    const startIndex = (currentPage - 1) * rowsPerPage;
+    const endIndex = Math.min(startIndex + rowsPerPage, filteredData.length);
+    const paginatedData = filteredData.slice(startIndex, endIndex);
+    
+    // Render table với dữ liệu đã phân trang
+    const tbody = document.getElementById('tableBody');
+    tbody.innerHTML = '';
+    
+    paginatedData.forEach(item => {
         const row = document.createElement('tr');
         
         row.innerHTML = `
@@ -142,15 +154,64 @@ function loadTable(data, filterStatus = 'all') {
         
         tbody.appendChild(row);
     });
+    
+    // Cập nhật pagination controls
+    updatePaginationControls(totalPages, filteredData.length);
+}
+
+// Function pagination controls
+function updatePaginationControls(totalPages, totalItems) {
+    const pageInfo = document.getElementById('pageInfo');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    
+    pageInfo.textContent = `Page ${currentPage} of ${totalPages} (Total: ${totalItems} items)`;
+    
+    prevBtn.disabled = currentPage === 1;
+    nextBtn.disabled = currentPage === totalPages || totalPages === 0;
+}
+
+// Function Previous/Next page
+function prevPage() {
+    if (currentPage > 1) {
+        currentPage--;
+        filterTable(); // Reload với filter hiện tại
+    }
+}
+
+function nextPage() {
+    const filterValue = document.getElementById('statusFilter').value;
+    let filteredData = originalData;
+    if (filterValue !== 'all') {
+        filteredData = originalData.filter(item => 
+            item.status.toLowerCase() === filterValue
+        );
+    }
+    
+    const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+    if (currentPage < totalPages) {
+        currentPage++;
+        filterTable(); // Reload với filter hiện tại
+    }
 }
 
 // Function filter khi thay đổi dropdown
 function filterTable() {
+    currentPage = 1; // Reset về trang 1 khi filter
     const filterValue = document.getElementById('statusFilter').value;
     loadTable(originalData, filterValue);
+    
+    // Cập nhật chart cũng filter theo
+    let filteredData = originalData;
+    if (filterValue !== 'all') {
+        filteredData = originalData.filter(item => 
+            item.status.toLowerCase() === filterValue
+        );
+    }
+    createStatusChart(filteredData);
 }
 
-// Cập nhật function getStatusColor nếu chưa có
+// Function getStatusColor
 function getStatusColor(status) {
     const statusLower = status.toLowerCase();
     if (statusLower === 'healthy') {
@@ -162,7 +223,7 @@ function getStatusColor(status) {
     }
 }
 
-// Cập nhật phần load dữ liệu ban đầu
+// Load dữ liệu ban đầu
 fetch_data().then(data => {
     console.log("result", data);
     originalData = data; // Lưu dữ liệu gốc
