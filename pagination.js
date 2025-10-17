@@ -1,63 +1,74 @@
-const PlatformMetrics = require('./platformMetrics'); // Adjust path
-
-// Replace your existing route
 router.get("/platformmetrics", async (req, res) => {
     try {
-        // Build filter object từ query parameters
-        const filter = {};
+        // Build match stage
+        const matchStage = {};
         
         if (req.query.platform) {
-            filter.platform = req.query.platform;
+            matchStage.platform = req.query.platform;
         }
         
         if (req.query.status) {
-            filter.status = req.query.status;
+            matchStage.status = req.query.status;
         }
         
         if (req.query.search) {
             const searchRegex = new RegExp(req.query.search, 'i');
-            filter.$or = [
+            matchStage.$or = [
                 { item: searchRegex },
                 { account: searchRegex },
                 { reason: searchRegex },
-                { item_type: searchRegex },
-                { platform: searchRegex }
+                { item_type: searchRegex }
             ];
         }
 
-        // Pagination options [web:135]
+        // Build aggregation pipeline
+        const pipeline = [
+            { $match: matchStage },
+            { $sort: { date: -1 } }
+        ];
+
+        // Pagination options
         const options = {
             page: parseInt(req.query.page) || 1,
             limit: parseInt(req.query.limit) || 20,
-            sort: { date: -1 }, // Sort by date descending
-            lean: true, // Return plain objects for better performance
+            customLabels: {
+                totalDocs: 'totalItems',
+                docs: 'data',
+                limit: 'itemsPerPage',
+                page: 'currentPage',
+                nextPage: 'next',
+                prevPage: 'previous',
+                totalPages: 'pageCount',
+                hasNextPage: 'hasNext',
+                hasPrevPage: 'hasPrevious'
+            }
         };
 
-        // Use paginate method thay vì find()
-        const result = await PlatformMetrics.paginate(filter, options);
-        
-        // Get group summary cho frontend
-        const groupSummary = await getGroupSummary(filter);
-        
-        // Structured response cho frontend
+        // Use aggregatePaginate
+        const result = await PlatformMetrics.aggregatePaginate(
+            PlatformMetrics.aggregate(pipeline), 
+            options
+        );
+
+        // Get group summary if needed
+        const groupSummary = await getGroupSummaryAggregation(matchStage);
+
         const response = {
             success: true,
-            data: result.docs,
+            data: result.data,
             pagination: {
-                currentPage: result.page,
-                totalPages: result.totalPages,
-                totalItems: result.totalDocs,
-                itemsPerPage: result.limit,
-                hasNextPage: result.hasNextPage,
-                hasPreviousPage: result.hasPrevPage,
-                nextPage: result.nextPage,
-                previousPage: result.prevPage
+                currentPage: result.currentPage,
+                totalPages: result.pageCount,
+                totalItems: result.totalItems,
+                itemsPerPage: result.itemsPerPage,
+                hasNextPage: result.hasNext,
+                hasPreviousPage: result.hasPrevious
             },
             groupSummary: groupSummary
         };
 
         res.status(200).json(response);
-        
+
     } catch (error) {
         console.error("Error fetching platform metrics:", error);
         res.status(500).json({ 
@@ -68,11 +79,11 @@ router.get("/platformmetrics", async (req, res) => {
     }
 });
 
-// Helper function để get group summary bằng aggregation
-async function getGroupSummary(filter = {}) {
+// Group summary với aggregation
+async function getGroupSummaryAggregation(matchStage) {
     try {
         const pipeline = [
-            { $match: filter },
+            { $match: matchStage },
             {
                 $group: {
                     _id: "$platform",
@@ -95,7 +106,7 @@ async function getGroupSummary(filter = {}) {
                     overallStatus: {
                         $cond: [
                             { $gt: ["$unhealthyCount", 0] },
-                            "unhealthy",
+                            "unhealthy", 
                             "healthy"
                         ]
                     }
