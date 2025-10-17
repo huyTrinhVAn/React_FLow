@@ -80,22 +80,29 @@ router.get("/platformmetrics", async (req, res) => {
 });
 
 // Group summary với aggregation
+// Backend: thêm debug vào getGroupSummaryAggregation
 async function getGroupSummaryAggregation(matchStage) {
     try {
+        // DEBUG: Check raw data first
+        const rawData = await PlatformMetrics.find(matchStage).limit(10);
+        console.log("Raw sample data:", JSON.stringify(rawData, null, 2));
+        
         const pipeline = [
             { $match: matchStage },
             {
                 $group: {
                     _id: "$platform",
                     totalItems: { $sum: 1 },
+                    // DEBUG: Get all unique states
+                    allStates: { $addToSet: "$state" },
                     healthyCount: {
                         $sum: {
-                            $cond: [{ $eq: ["$status", "healthy"] }, 1, 0]
+                            $cond: [{ $eq: ["$state", "healthy"] }, 1, 0]
                         }
                     },
                     unhealthyCount: {
                         $sum: {
-                            $cond: [{ $eq: ["$status", "unhealthy"] }, 1, 0]
+                            $cond: [{ $eq: ["$state", "unhealthy"] }, 1, 0]
                         }
                     }
                 }
@@ -115,9 +122,14 @@ async function getGroupSummaryAggregation(matchStage) {
             { $sort: { platform: 1 } }
         ];
 
-        return await PlatformMetrics.aggregate(pipeline);
+        const result = await PlatformMetrics.aggregate(pipeline);
+        console.log("Aggregation result:", JSON.stringify(result, null, 2));
+        
+        return result;
     } catch (error) {
         console.error("Error getting group summary:", error);
         return [];
     }
+}
+
 }
