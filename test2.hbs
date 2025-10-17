@@ -73,32 +73,34 @@
             transform: rotate(-90deg);
         }
 
-        .group-items {
+        .group-content {
             display: none;
+            border-left: 3px solid #ddd;
+            padding-left: 10px;
         }
 
-        .group-items.expanded {
-            display: table-row-group;
+        .group-content.expanded {
+            display: block;
+        }
+
+        .group-filters {
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+
+        .group-filters input,
+        .group-filters select {
+            margin-right: 10px;
+            padding: 5px;
         }
     </style>
 </head>
 <body>
     <h4 class="partialHeader" id="awsSearchHeader">Platform Metrics</h4>
 
-    <!-- Search and Filter -->
-    <div style="margin-bottom: 10px;">
-        <label for="searchInput">Search: </label>
-        <input type="text" id="searchInput" placeholder="Search by account, item, platform..." onkeyup="searchTable()" style="margin-right: 15px;">
-        
-        <label for="statusFilter">Filter by Status: </label>
-        <select id="statusFilter" onchange="filterTable()">
-            <option value="all">All</option>
-            <option value="healthy">Healthy Only</option>
-            <option value="unhealthy">Unhealthy Only</option>
-        </select>
-    </div>
-
-    <!-- Grouped Table -->
+    <!-- Grouped View -->
     <div id="groupedView">
         <!-- Groups will be populated here -->
     </div>
@@ -142,12 +144,17 @@
             return hasUnhealthy ? 'unhealthy' : 'healthy';
         }
 
-        // Function to get filtered data
-        function getFilteredData() {
-            const searchTerm = document.getElementById('searchInput').value.trim();
-            const filterValue = document.getElementById('statusFilter').value;
+        // Function to get filtered data for specific group
+        function getFilteredGroupData(platform, originalItems) {
+            const searchInput = document.getElementById(`search-${platform}`);
+            const filterSelect = document.getElementById(`filter-${platform}`);
             
-            let filteredData = originalData;
+            if (!searchInput || !filterSelect) return originalItems;
+            
+            const searchTerm = searchInput.value.trim();
+            const filterValue = filterSelect.value;
+            
+            let filteredData = originalItems;
             
             // Filter by status
             if (filterValue !== 'all') {
@@ -161,7 +168,6 @@
                 filteredData = filteredData.filter(item => 
                     (item.account && item.account.toLowerCase().includes(searchTerm.toLowerCase())) ||
                     (item.item && item.item.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                    (item.platform && item.platform.toLowerCase().includes(searchTerm.toLowerCase())) ||
                     (item.reason && item.reason.toLowerCase().includes(searchTerm.toLowerCase())) ||
                     (item.item_type && item.item_type.toLowerCase().includes(searchTerm.toLowerCase()))
                 );
@@ -170,10 +176,44 @@
             return filteredData;
         }
 
+        // Function to render specific group table
+        function renderGroupTable(platform, originalItems) {
+            const filteredItems = getFilteredGroupData(platform, originalItems);
+            const tableBody = document.getElementById(`tbody-${platform}`);
+            
+            if (!tableBody) return;
+            
+            tableBody.innerHTML = '';
+            
+            if (filteredItems.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="7" style="text-align: center; color: #666; padding: 20px;">
+                            No items match your search criteria
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            filteredItems.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${item.account || ''}</td>
+                    <td>${item.date || ''}</td>
+                    <td>${item.item || ''}</td>
+                    <td>${item.item_type || ''}</td>
+                    <td>${item.reason || ''}</td>
+                    <td style="color: ${getStatusColor(item.status)}">${item.status || ''}</td>
+                    <td>${item._id || ''}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
         // Function to render grouped view
         function renderGroupedView() {
-            const filteredData = getFilteredData();
-            const grouped = groupDataByPlatform(filteredData);
+            const grouped = groupDataByPlatform(originalData);
             const container = document.getElementById('groupedView');
             
             container.innerHTML = '';
@@ -182,6 +222,7 @@
                 const items = grouped[platform];
                 const groupStatus = getGroupStatus(items);
                 const isExpanded = groupedData[platform] ? groupedData[platform].expanded : false;
+                const safeId = platform.replace(/[^a-zA-Z0-9]/g, '_');
 
                 // Create group container
                 const groupDiv = document.createElement('div');
@@ -196,35 +237,42 @@
                             </div>
                         </div>
                     </div>
-                    <table class="group-items ${isExpanded ? 'expanded' : ''}" id="group-${platform}">
-                        <thead>
-                            <tr>
-                                <th>Account</th>
-                                <th>Date</th>
-                                <th>Item</th>
-                                <th>Item Type</th>
-                                <th>Reason</th>
-                                <th>Status</th>
-                                <th>ID</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${items.map(item => `
+                    <div class="group-content ${isExpanded ? 'expanded' : ''}" id="content-${platform}">
+                        <div class="group-filters">
+                            <label>Search: </label>
+                            <input type="text" id="search-${safeId}" placeholder="Search in ${platform}..." onkeyup="searchGroup('${platform}')" style="margin-right: 15px;">
+                            
+                            <label>Filter: </label>
+                            <select id="filter-${safeId}" onchange="filterGroup('${platform}')">
+                                <option value="all">All</option>
+                                <option value="healthy">Healthy Only</option>
+                                <option value="unhealthy">Unhealthy Only</option>
+                            </select>
+                        </div>
+                        
+                        <table class="group-table">
+                            <thead>
                                 <tr>
-                                    <td>${item.account || ''}</td>
-                                    <td>${item.date || ''}</td>
-                                    <td>${item.item || ''}</td>
-                                    <td>${item.item_type || ''}</td>
-                                    <td>${item.reason || ''}</td>
-                                    <td style="color: ${getStatusColor(item.status)}">${item.status || ''}</td>
-                                    <td>${item._id || ''}</td>
+                                    <th>Account</th>
+                                    <th>Date</th>
+                                    <th>Item</th>
+                                    <th>Item Type</th>
+                                    <th>Reason</th>
+                                    <th>Status</th>
+                                    <th>ID</th>
                                 </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody id="tbody-${safeId}">
+                                <!-- Items will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
                 `;
 
                 container.appendChild(groupDiv);
+                
+                // Render initial table data
+                renderGroupTable(safeId, items);
             });
         }
 
@@ -237,25 +285,31 @@
             groupedData[platform].expanded = !groupedData[platform].expanded;
             
             const header = document.querySelector(`.group-header[onclick="toggleGroup('${platform}')"]`);
-            const table = document.getElementById(`group-${platform}`);
+            const content = document.getElementById(`content-${platform}`);
             
             if (groupedData[platform].expanded) {
                 header.classList.remove('collapsed');
-                table.classList.add('expanded');
+                content.classList.add('expanded');
             } else {
                 header.classList.add('collapsed');
-                table.classList.remove('expanded');
+                content.classList.remove('expanded');
             }
         }
 
-        // Function search table
-        function searchTable() {
-            renderGroupedView();
+        // Function search within group
+        function searchGroup(platform) {
+            const safeId = platform.replace(/[^a-zA-Z0-9]/g, '_');
+            const grouped = groupDataByPlatform(originalData);
+            const originalItems = grouped[platform] || [];
+            renderGroupTable(safeId, originalItems);
         }
 
-        // Function filter table
-        function filterTable() {
-            renderGroupedView();
+        // Function filter within group
+        function filterGroup(platform) {
+            const safeId = platform.replace(/[^a-zA-Z0-9]/g, '_');
+            const grouped = groupDataByPlatform(originalData);
+            const originalItems = grouped[platform] || [];
+            renderGroupTable(safeId, originalItems);
         }
 
         // Function get status color
