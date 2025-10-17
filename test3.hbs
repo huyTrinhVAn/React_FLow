@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Platform Metrics</title>
+    <link rel="stylesheet" href="/css/modal.css">
+    <link rel="stylesheet" href="/css/datatables.css">
+    <script src="/js/datatables.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            border: 1px solid #ccc;
+            padding: 12px 15px;
+            text-align: left;
+        }
+        
+        th {
+            background-color: #870e40;
+            color: #f2f2f2;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        /* Group styling */
+        .group-header {
+            background-color: #f5f5f5;
+            cursor: pointer;
+            border-bottom: 2px solid #ddd;
+            user-select: none;
+        }
+
+        .group-header:hover {
+            background-color: #e9ecef;
+        }
+
+        .group-title {
+            font-weight: bold;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .group-status {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .status-healthy {
+            background-color: green;
+            color: white;
+        }
+
+        .status-unhealthy {
+            background-color: red;
+            color: white;
+        }
+
+        .collapse-icon {
+            font-size: 1.2rem;
+            transition: transform 0.3s ease;
+        }
+
+        .collapsed .collapse-icon {
+            transform: rotate(-90deg);
+        }
+
+        .group-content {
+            display: none;
+            border-left: 3px solid #ddd;
+            padding-left: 10px;
+        }
+
+        .group-content.expanded {
+            display: block;
+        }
+
+        .group-filters {
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+
+        .group-filters input,
+        .group-filters select {
+            margin-right: 10px;
+            padding: 5px;
+        }
+
+        /* Pagination styling */
+        .group-pagination {
+            text-align: center;
+            margin-top: 15px;
+            padding: 10px;
+        }
+
+        .pagination-info {
+            margin-bottom: 10px;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .pagination-controls button {
+            margin: 0 5px;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            background-color: #fff;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .pagination-controls button:hover {
+            background-color: #f5f5f5;
+        }
+
+        .pagination-controls button:disabled {
+            background-color: #f9f9f9;
+            color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <h4 class="partialHeader" id="awsSearchHeader">Platform Metrics</h4>
+
+    <!-- Grouped View -->
+    <div id="groupedView">
+        <!-- Groups will be populated here -->
+    </div>
+
+    <script>
+        // Global variables
+        let groupSummary = [];
+        let groupedData = {};
+
+        // API call function với parameters
+        async function fetch_data(params = {}) {
+            const queryParams = new URLSearchParams();
+            
+            Object.keys(params).forEach(key => {
+                if (params[key] !== null && params[key] !== undefined && params[key] !== '') {
+                    queryParams.append(key, params[key]);
+                }
+            });
+
+            const endpoint = 'platformmetrics';
+            const query = queryParams.toString() ? '?' + queryParams.toString() : '';
+            
+            try {
+                const response = await fetch('/' + endpoint + query);
+                const data = await response.json();
+                
+                console.log("fetched data", data);
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to fetch data');
+                }
+                
+                return data;
+            } catch (error) {
+                console.error("Error fetching data:", error);
+                throw error;
+            }
+        }
+
+        // Function to load group summary (limit=0 để chỉ lấy summary)
+        async function loadGroupSummary() {
+            try {
+                const data = await fetch_data({ limit: 0 });
+                groupSummary = data.groupSummary || [];
+                renderGroupedView();
+            } catch (error) {
+                console.error("Error loading group summary:", error);
+                document.getElementById('groupedView').innerHTML = '<div class="loading">Error loading data</div>';
+            }
+        }
+
+        // Function to load specific group data với pagination
+        async function loadGroupData(platform, page = 1, search = '', state = 'all') {
+            const safeId = platform.replace(/[^a-zA-Z0-9]/g, '_');
+            const tableBody = document.getElementById(`tbody-${safeId}`);
+            const pagination = document.getElementById(`pagination-${safeId}`);
+            
+            if (!tableBody) return;
+
+            // Show loading
+            tableBody.innerHTML = '<tr><td colspan="7" class="loading">Loading...</td></tr>';
+
+            try {
+                const params = {
+                    platform: platform,
+                    page: page,
+                    limit: 10
+                };
+
+                if (search) params.search = search;
+                if (state !== 'all') params.state = state;
+
+                const data = await fetch_data(params);
+                
+                // Clear loading
+                tableBody.innerHTML = '';
+
+                if (!data.data || data.data.length === 0) {
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td colspan="7" style="text-align: center; color: #666; padding: 20px;">
+                                No items found
+                            </td>
+                        </tr>
+                    `;
+                    if (pagination) pagination.style.display = 'none';
+                    return;
+                }
+
+                // Render table rows
+                data.data.forEach(item => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${item.account || ''}</td>
+                        <td>${item.date || ''}</td>
+                        <td>${item.item || ''}</td>
+                        <td>${item.item_type || ''}</td>
+                        <td>${item.reason || ''}</td>
+                        <td style="color: ${getStatusColor(item.state)}">${item.state || ''}</td>
+                        <td>${item._id || ''}</td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+
+                // Update pagination
+                updatePagination(platform, data.pagination);
+
+                // Store current page
+                if (!groupedData[platform]) {
+                    groupedData[platform] = {};
+                }
+                groupedData[platform].currentPage = page;
+
+            } catch (error) {
+                console.error("Error loading group data:", error);
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="7" style="text-align: center; color: #dc3545; padding: 20px;">
+                            Error loading data: ${error.message}
+                        </td>
+                    </tr>
+                `;
+                if (pagination) pagination.style.display = 'none';
+            }
+        }
+
+        // Function to update pagination controls
+        function updatePagination(platform, paginationData) {
+            const safeId = platform.replace(/[^a-zA-Z0-9]/g, '_');
+            const paginationContainer = document.getElementById(`pagination-${safeId}`);
+            
+            if (!paginationContainer || !paginationData) return;
+
+            const { currentPage, totalPages, totalItems, itemsPerPage, hasNextPage, hasPreviousPage } = paginationData;
+            
+            const startItem = totalItems > 0 ? ((currentPage - 1) * itemsPerPage) + 1 : 0;
+            const endItem = Math.min(currentPage * itemsPerPage, totalItems);
+
+            paginationContainer.innerHTML = `
+                <div class="pagination-info">
+                    Showing ${startItem}-${endItem} of ${totalItems} items
+                </div>
+                <div class="pagination-controls">
+                    <button onclick="goToPage('${platform}', 1)" ${!hasPreviousPage ? 'disabled' : ''}>First</button>
+                    <button onclick="goToPage('${platform}', ${currentPage - 1})" ${!hasPreviousPage ? 'disabled' : ''}>Previous</button>
+                    <span style="margin: 0 10px;">Page ${currentPage} of ${totalPages}</span>
+                    <button onclick="goToPage('${platform}', ${currentPage + 1})" ${!hasNextPage ? 'disabled' : ''}>Next</button>
+                    <button onclick="goToPage('${platform}', ${totalPages})" ${!hasNextPage ? 'disabled' : ''}>Last</button>
+                </div>
+            `;
+
+            // Show/hide pagination
+            if (totalPages <= 1) {
+                paginationContainer.style.display = 'none';
+            } else {
+                paginationContainer.style.display = 'block';
+            }
+        }
+
+        // Function to go to specific page
+        function goToPage(platform, page) {
+            const safeId = platform.replace(/[^a-zA-Z0-9]/g, '_');
+            const searchInput = document.getElementById(`search-${safeId}`);
+            const filterSelect = document.getElementById(`filter-${safeId}`);
+            
+            const search = searchInput ? searchInput.value.trim() : '';
+            const state = filterSelect ? filterSelect.value : 'all';
+
+            loadGroupData(platform, page, search, state);
+        }
+
+        // Function to render grouped view from summary
+        function renderGroupedView() {
+            const container = document.getElementById('groupedView');
+            container.innerHTML = '';
+
+            if (!groupSummary || groupSummary.length === 0) {
+                container.innerHTML = '<div class="loading">No data available</div>';
+                return;
+            }
+
+            groupSummary.forEach(group => {
+                const platform = group.platform;
+                const isExpanded = groupedData[platform] ? groupedData[platform].expanded : false;
+                const safeId = platform.replace(/[^a-zA-Z0-9]/g, '_');
+
+                const groupDiv = document.createElement('div');
+                groupDiv.className = 'group-container';
+                groupDiv.innerHTML = `
+                    <div class="group-header ${isExpanded ? '' : 'collapsed'}" onclick="toggleGroup('${platform}')">
+                        <div class="group-title">
+                            <span>${platform} (${group.totalItems} items)</span>
+                            <div>
+                                <span class="group-status status-${group.overallStatus}">${group.overallStatus.toUpperCase()}</span>
+                                <span class="collapse-icon">▼</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="group-content ${isExpanded ? 'expanded' : ''}" id="content-${platform}">
+                        <div class="group-filters">
+                            <label>Search: </label>
+                            <input type="text" id="search-${safeId}" placeholder="Search in ${platform}..." onkeyup="searchGroup('${platform}')" style="margin-right: 15px;">
+                            
+                            <label>Filter: </label>
+                            <select id="filter-${safeId}" onchange="filterGroup('${platform}')">
+                                <option value="all">All</option>
+                                <option value="healthy">Healthy Only</option>
+                                <option value="unhealthy">Unhealthy Only</option>
+                            </select>
+                        </div>
+                        
+                        <table class="group-table">
+                            <thead>
+                                <tr>
+                                    <th>Account</th>
+                                    <th>Date</th>
+                                    <th>Item</th>
+                                    <th>Item Type</th>
+                                    <th>Reason</th>
+                                    <th>State</th>
+                                    <th>ID</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-${safeId}">
+                                <!-- Items will be loaded when expanded -->
+                            </tbody>
+                        </table>
+                        
+                        <div class="group-pagination" id="pagination-${safeId}" style="display: none;">
+                            <!-- Pagination controls will be populated here -->
+                        </div>
+                    </div>
+                `;
+
+                container.appendChild(groupDiv);
+            });
+        }
+
+        // Function to toggle group expand/collapse
+        function toggleGroup(platform) {
+            if (!groupedData[platform]) {
+                groupedData[platform] = { expanded: false, currentPage: 1 };
+            }
+            
+            groupedData[platform].expanded = !groupedData[platform].expanded;
+            
+            const header = document.querySelector(`.group-header[onclick="toggleGroup('${platform}')"]`);
+            const content = document.getElementById(`content-${platform}`);
+            
+            if (groupedData[platform].expanded) {
+                header.classList.remove('collapsed');
+                content.classList.add('expanded');
+                
+                // Load data when expanding
+                const currentPage = groupedData[platform].currentPage || 1;
+                loadGroupData(platform, currentPage);
+            } else {
+                header.classList.add('collapsed');
+                content.classList.remove('expanded');
+            }
+        }
+
+        // Function search within group
+        function searchGroup(platform) {
+            const safeId = platform.replace(/[^a-zA-Z0-9]/g, '_');
+            const searchInput = document.getElementById(`search-${safeId}`);
+            const filterSelect = document.getElementById(`filter-${safeId}`);
+            
+            const search = searchInput ? searchInput.value.trim() : '';
+            const state = filterSelect ? filterSelect.value : 'all';
+
+            loadGroupData(platform, 1, search, state); // Reset to page 1
+        }
+
+        // Function filter within group
+        function filterGroup(platform) {
+            const safeId = platform.replace(/[^a-zA-Z0-9]/g, '_');
+            const searchInput = document.getElementById(`search-${safeId}`);
+            const filterSelect = document.getElementById(`filter-${safeId}`);
+            
+            const search = searchInput ? searchInput.value.trim() : '';
+            const state = filterSelect ? filterSelect.value : 'all';
+
+            loadGroupData(platform, 1, search, state); // Reset to page 1
+        }
+
+        // Function get status color (sửa thành state)
+        function getStatusColor(state) {
+            if (!state) return 'black';
+            const stateLower = state.toLowerCase();
+            if (stateLower === 'healthy') {
+                return 'green';
+            } else if (stateLower === 'unhealthy') {
+                return 'red';
+            } else {
+                return 'black';
+            }
+        }
+
+        // Load initial data
+        document.addEventListener('DOMContentLoaded', function() {
+            loadGroupSummary();
+        });
+    </script>
+</body>
+</html>
