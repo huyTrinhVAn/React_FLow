@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Platform Metrics</title>
+    <link rel="stylesheet" href="/css/modal.css">
+    <link rel="stylesheet" href="/css/datatables.css">
+    <script src="/js/datatables.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            border: 1px solid #ccc;
+            padding: 12px 15px;
+            text-align: left;
+        }
+        
+        th {
+            background-color: #870e40;
+            color: #f2f2f2;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        /* Group styling */
+        .group-header {
+            background-color: #f5f5f5;
+            cursor: pointer;
+            border-bottom: 2px solid #ddd;
+            user-select: none;
+        }
+
+        .group-header:hover {
+            background-color: #e9ecef;
+        }
+
+        .group-title {
+            font-weight: bold;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .group-status {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .status-healthy {
+            background-color: green;
+            color: white;
+        }
+
+        .status-unhealthy {
+            background-color: red;
+            color: white;
+        }
+
+        .collapse-icon {
+            font-size: 1.2rem;
+            transition: transform 0.3s ease;
+        }
+
+        .collapsed .collapse-icon {
+            transform: rotate(-90deg);
+        }
+
+        .group-items {
+            display: none;
+        }
+
+        .group-items.expanded {
+            display: table-row-group;
+        }
+    </style>
+</head>
+<body>
+    <h4 class="partialHeader" id="awsSearchHeader">Platform Metrics</h4>
+
+    <!-- Search and Filter -->
+    <div style="margin-bottom: 10px;">
+        <label for="searchInput">Search: </label>
+        <input type="text" id="searchInput" placeholder="Search by account, item, platform..." onkeyup="searchTable()" style="margin-right: 15px;">
+        
+        <label for="statusFilter">Filter by Status: </label>
+        <select id="statusFilter" onchange="filterTable()">
+            <option value="all">All</option>
+            <option value="healthy">Healthy Only</option>
+            <option value="unhealthy">Unhealthy Only</option>
+        </select>
+    </div>
+
+    <!-- Grouped Table -->
+    <div id="groupedView">
+        <!-- Groups will be populated here -->
+    </div>
+
+    <script>
+        async function fetch_data() {
+            var endpoint = "platformmetrics";
+            var query = "";
+            
+            const response = await fetch('/' + endpoint + query);
+            const obj = await response.json();
+            
+            console.log("fetched data", obj);
+            return obj;
+        }
+
+        // Global variables
+        let originalData = [];
+        let groupedData = {};
+
+        // Function to group data by platform
+        function groupDataByPlatform(data) {
+            const groups = {};
+            
+            data.forEach(item => {
+                const key = item.platform || 'Unknown';
+                if (!groups[key]) {
+                    groups[key] = [];
+                }
+                groups[key].push(item);
+            });
+            
+            return groups;
+        }
+
+        // Function to determine group status
+        function getGroupStatus(items) {
+            const hasUnhealthy = items.some(item => 
+                item.status && item.status.toLowerCase() === 'unhealthy'
+            );
+            return hasUnhealthy ? 'unhealthy' : 'healthy';
+        }
+
+        // Function to get filtered data
+        function getFilteredData() {
+            const searchTerm = document.getElementById('searchInput').value.trim();
+            const filterValue = document.getElementById('statusFilter').value;
+            
+            let filteredData = originalData;
+            
+            // Filter by status
+            if (filterValue !== 'all') {
+                filteredData = filteredData.filter(item => 
+                    item.status && item.status.toLowerCase() === filterValue
+                );
+            }
+            
+            // Filter by search term
+            if (searchTerm !== '') {
+                filteredData = filteredData.filter(item => 
+                    (item.account && item.account.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                    (item.item && item.item.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                    (item.platform && item.platform.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                    (item.reason && item.reason.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                    (item.item_type && item.item_type.toLowerCase().includes(searchTerm.toLowerCase()))
+                );
+            }
+            
+            return filteredData;
+        }
+
+        // Function to render grouped view
+        function renderGroupedView() {
+            const filteredData = getFilteredData();
+            const grouped = groupDataByPlatform(filteredData);
+            const container = document.getElementById('groupedView');
+            
+            container.innerHTML = '';
+
+            Object.keys(grouped).forEach(platform => {
+                const items = grouped[platform];
+                const groupStatus = getGroupStatus(items);
+                const isExpanded = groupedData[platform] ? groupedData[platform].expanded : false;
+
+                // Create group container
+                const groupDiv = document.createElement('div');
+                groupDiv.className = 'group-container';
+                groupDiv.innerHTML = `
+                    <div class="group-header ${isExpanded ? '' : 'collapsed'}" onclick="toggleGroup('${platform}')">
+                        <div class="group-title">
+                            <span>${platform} (${items.length} items)</span>
+                            <div>
+                                <span class="group-status status-${groupStatus}">${groupStatus.toUpperCase()}</span>
+                                <span class="collapse-icon">▼</span>
+                            </div>
+                        </div>
+                    </div>
+                    <table class="group-items ${isExpanded ? 'expanded' : ''}" id="group-${platform}">
+                        <thead>
+                            <tr>
+                                <th>Account</th>
+                                <th>Date</th>
+                                <th>Item</th>
+                                <th>Item Type</th>
+                                <th>Reason</th>
+                                <th>Status</th>
+                                <th>ID</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${items.map(item => `
+                                <tr>
+                                    <td>${item.account || ''}</td>
+                                    <td>${item.date || ''}</td>
+                                    <td>${item.item || ''}</td>
+                                    <td>${item.item_type || ''}</td>
+                                    <td>${item.reason || ''}</td>
+                                    <td style="color: ${getStatusColor(item.status)}">${item.status || ''}</td>
+                                    <td>${item._id || ''}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+
+                container.appendChild(groupDiv);
+            });
+        }
+
+        // Function to toggle group expand/collapse
+        function toggleGroup(platform) {
+            if (!groupedData[platform]) {
+                groupedData[platform] = { expanded: false };
+            }
+            
+            groupedData[platform].expanded = !groupedData[platform].expanded;
+            
+            const header = document.querySelector(`.group-header[onclick="toggleGroup('${platform}')"]`);
+            const table = document.getElementById(`group-${platform}`);
+            
+            if (groupedData[platform].expanded) {
+                header.classList.remove('collapsed');
+                table.classList.add('expanded');
+            } else {
+                header.classList.add('collapsed');
+                table.classList.remove('expanded');
+            }
+        }
+
+        // Function search table
+        function searchTable() {
+            renderGroupedView();
+        }
+
+        // Function filter table
+        function filterTable() {
+            renderGroupedView();
+        }
+
+        // Function get status color
+        function getStatusColor(status) {
+            if (!status) return 'black';
+            const statusLower = status.toLowerCase();
+            if (statusLower === 'healthy') {
+                return 'green';
+            } else if (statusLower === 'unhealthy') {
+                return 'red';
+            } else {
+                return 'black';
+            }
+        }
+
+        // Load initial data
+        fetch_data().then(data => {
+            console.log("result", data);
+            originalData = data;
+            renderGroupedView();
+        });
+    </script>
+</body>
+</html>
