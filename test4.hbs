@@ -1,0 +1,88 @@
+// Group data by platform > sub-category
+function groupDataByPlatformAndSubCategory(data) {
+    const result = {};
+    for (const item of data) {
+        const platform = item.platform || 'Unknown';
+        const subCategory = item['sub-category'] || 'Other';
+        result[platform] = result[platform] || {};
+        result[platform][subCategory] = result[platform][subCategory] || [];
+        result[platform][subCategory].push(item);
+    }
+    return function renderGroupedView(data) {
+    const nestedGroups = groupDataByPlatformAndSubCategory(data);
+    const container = document.getElementById('groupedView');
+    container.innerHTML = '';
+
+    Object.entries(nestedGroups).forEach(([platform, subCategories]) => {
+        // Platform header
+        const platformId = platform.replace(/[^a-zA-Z0-9]/g, "_");
+        container.innerHTML += `
+            <div class="group-header" onclick="toggleCollapse('${platformId}')">
+                <div class="group-title">
+                    <span>${platform}</span>
+                    <span class="collapse-icon" id="icon-${platformId}">▼</span>
+                </div>
+            </div>
+            <div class="group-content" id="content-${platformId}" style="display: none"></div>
+        `;
+
+        // Render sub-category inside platform
+        let subsHtml = '';
+        Object.entries(subCategories).forEach(([sub, items]) => {
+            const subId = (platform + sub).replace(/[^a-zA-Z0-9]/g, "_");
+            subsHtml += `
+                <div class="group-header" style="margin-left: 20px; background:#f5fbff;" onclick="toggleCollapse('${subId}')">
+                    <div class="group-title">
+                        <span>${sub}</span>
+                        <span class="collapse-icon" id="icon-${subId}">▶</span>
+                    </div>
+                </div>
+                <div class="group-content" id="content-${subId}" style="display: none">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Account</th>
+                                <th>Date</th>
+                                <th>Item</th>
+                                <th>Item Type</th>
+                                <th>Reason</th>
+                                <th>State</th>
+                                <th>ID</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${items.map(item => `
+                                <tr>
+                                    <td>${item.account}</td>
+                                    <td>${item.date}</td>
+                                    <td>${item.item}</td>
+                                    <td>${item.item_type}</td>
+                                    <td>${item.reason}</td>
+                                    <td>${item.state}</td>
+                                    <td>${item._id}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        });
+
+        // Chèn HTML của sub vào content của platform
+        container.querySelector(`#content-${platformId}`).innerHTML = function toggleCollapse(id) {
+    const content = document.getElementById('content-' + id);
+    const icon = document.getElementById('icon-' + id);
+    if (content.style.display === "none") {
+        content.style.display = "block";
+        if (icon) icon.textContent = "▼";
+    } else {
+        content.style.display = "none";
+        if (icon) icon.textContent = "▶";
+    }
+}
+
+
+
+
+
+
