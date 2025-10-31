@@ -25,9 +25,9 @@
         <div class="accordion" id="platformAccordion">
             \{{#each platforms}}
             <div class="accordion-item mb-2">
-                <h2 class="accordion-header" id="heading-platform-\{{@index}}">
+                <h2 class="accordion-header" id="heading-\{{this.id}}">
                     <button class="accordion-button collapsed" type="button" 
-                        data-bs-toggle="collapse" data-bs-target="#collapse-platform-\{{@index}}">
+                        data-bs-toggle="collapse" data-bs-target="#collapse-\{{this.id}}">
                         <span class="fw-bold">\{{this.platform}}</span>
                         <span class="ms-2 text-muted">(\{{this.totalItems}} items)</span>
                         <span class="badge bg-\{{statusClass this.status}} ms-auto me-2">
@@ -35,15 +35,15 @@
                         </span>
                     </button>
                 </h2>
-                <div id="collapse-platform-\{{@index}}" class="accordion-collapse collapse" 
+                <div id="collapse-\{{this.id}}" class="accordion-collapse collapse" 
                     data-bs-parent="#platformAccordion">
                     <div class="accordion-body">
-                        <div class="accordion" id="subAccordion-\{{@index}}">
+                        <div class="accordion" id="subAccordion-\{{this.id}}">
                             \{{#each this.subCategories}}
                             <div class="accordion-item">
-                                <h2 class="accordion-header" id="heading-sub-\{{../this.platform}}-\{{@index}}">
+                                <h2 class="accordion-header" id="heading-\{{this.id}}">
                                     <button class="accordion-button collapsed" type="button" 
-                                        data-bs-toggle="collapse" data-bs-target="#collapse-sub-\{{../this.platform}}-\{{@index}}">
+                                        data-bs-toggle="collapse" data-bs-target="#collapse-\{{this.id}}">
                                         <span>\{{this.name}}</span>
                                         <span class="ms-2 text-muted">(\{{this.items.length}} items)</span>
                                         <span class="badge bg-\{{statusClass this.status}} ms-auto me-2">
@@ -51,8 +51,8 @@
                                         </span>
                                     </button>
                                 </h2>
-                                <div id="collapse-sub-\{{../this.platform}}-\{{@index}}" class="accordion-collapse collapse" 
-                                    data-bs-parent="#subAccordion-\{{../@index}}">
+                                <div id="collapse-\{{this.id}}" class="accordion-collapse collapse" 
+                                    data-bs-parent="#subAccordion-\{{../this.id}}">
                                     <div class="accordion-body">
                                         <table class="table table-sm table-hover">
                                             <thead class="table-dark">
@@ -148,20 +148,25 @@
                 grouped[platform][subCategory].push(item);
             });
             
-            // Convert to array with status
+            // Convert to array with status and IDs
             Object.entries(grouped).forEach(([platform, subs]) => {
                 const platformSummary = groupSummary.find(g => g.platform === platform);
                 const totalItems = Object.values(subs).reduce((sum, items) => sum + items.length, 0);
+                const platformId = platform.replace(/[^a-zA-Z0-9]/g, '_'); // Create safe ID
                 
                 const subCategories = Object.entries(subs).map(([name, items]) => {
                     const status = items.some(i => i.state && i.state.toLowerCase() === 'unhealthy') 
                         ? 'unhealthy' 
                         : 'healthy';
                     
+                    // Create unique sub-category ID
+                    const subId = (platform + '_' + name).replace(/[^a-zA-Z0-9]/g, '_');
+                    
                     return {
                         name,
                         items,
-                        status
+                        status,
+                        id: subId // Add ID to sub-category
                     };
                 });
                 
@@ -169,7 +174,8 @@
                     platform,
                     totalItems,
                     status: platformSummary ? platformSummary.overallStatus : 'unknown',
-                    subCategories
+                    subCategories,
+                    id: platformId // Add ID to platform
                 });
             });
             
@@ -180,7 +186,10 @@
         async function renderView() {
             try {
                 const data = await fetch_data();
+                console.log('Fetched data:', data); // Debug
+                
                 const platforms = groupDataByPlatformAndSub(data.data, data.groupSummary);
+                console.log('Grouped platforms:', platforms); // Debug
                 
                 // Compile template
                 const source = document.getElementById('platform-template').innerHTML;
@@ -191,9 +200,10 @@
                 document.getElementById('groupedView').innerHTML = html;
                 
             } catch (error) {
+                console.error('Error in renderView:', error);
                 document.getElementById('groupedView').innerHTML = `
                     <div class="alert alert-danger" role="alert">
-                        Error loading data: ${error.message}
+                        <strong>Error loading data:</strong> ${error.message}
                     </div>
                 `;
             }
