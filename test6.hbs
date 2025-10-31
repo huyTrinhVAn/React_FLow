@@ -1,144 +1,416 @@
-<!-- views/platformmetrics.handlebars -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Platform Metrics</title>
+    <link rel="stylesheet" href="/css/modal.css">
+    <link rel="stylesheet" href="/css/datatables.css">
+    <script src="/js/datatables.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            border: 1px solid #ccc;
+            padding: 12px 15px;
+            text-align: left;
+        }
+        
+        th {
+            background-color: #870e40;
+            color: #f2f2f2;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
 
-<!-- Load Bootstrap -->
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+        /* Group styling */
+        .group-header {
+            background-color: #f5f5f5;
+            cursor: pointer;
+            border-bottom: 2px solid #ddd;
+            user-select: none;
+        }
 
-<style>
-    /* Override Bootstrap resets - Keep original styles */
-    
-    /* Restore body margin */
-    body {
-        margin: 8px !important; /* Giữ nguyên margin gốc */
-        padding: 0 !important;
-    }
-    
-    /* Restore header styles from styles.css */
-    header {
-        display: flex !important;
-        justify-content: space-between !important;
-        align-items: center !important;
-        color: #323042 !important;
-        margin-bottom: 16px !important;
-        margin-top: 16px !important;
-        margin-left: 15px !important;
-        background-color: transparent !important;
-        background-position-y: top !important;
-        background-image: url(/img/weather.png) !important;
-        background-repeat: no-repeat !important;
-    }
-    
-    /* Prevent Bootstrap from affecting the title */
-    .header h1,
-    header h1 {
-        margin: 0 !important;
-        padding: 0 !important;
-        font-size: inherit !important;
-        font-weight: inherit !important;
-    }
-    
-    /* Content wrapper for Platform Metrics */
-    .platform-metrics-wrapper {
-        padding: 20px;
-        margin-top: 0;
-    }
-    
-    /* Ensure Bootstrap only affects table and components */
-    .bootstrap-scope {
-        /* Bootstrap classes work here */
-    }
-</style>
+        .group-header:hover {
+            background-color: #e9ecef;
+        }
 
-<!-- Content -->
-<div class="platform-metrics-wrapper">
-    <h4 style="margin-bottom: 20px;">Platform Metrics</h4>
-    
-    <div id="groupedView" class="bootstrap-scope">
-        <div class="text-center py-5">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
+        .group-title {
+            font-weight: bold;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .group-status {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .status-healthy {
+            background-color: green;
+            color: white;
+        }
+
+        .status-unhealthy {
+            background-color: red;
+            color: white;
+        }
+
+        .collapse-icon {
+            font-size: 1.2rem;
+            transition: transform 0.3s ease;
+        }
+
+        .collapsed .collapse-icon {
+            transform: rotate(-90deg);
+        }
+
+        .group-content {
+            display: none;
+            border-left: 3px solid #ddd;
+            padding-left: 10px;
+        }
+
+        .group-content.expanded {
+            display: block;
+        }
+
+        .group-filters {
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+
+        .group-filters input,
+        .group-filters select {
+            margin-right: 10px;
+            padding: 5px;
+        }
+
+        /* Pagination styling */
+        .group-pagination {
+            text-align: center;
+            margin-top: 15px;
+            padding: 10px;
+        }
+
+        .pagination-info {
+            margin-bottom: 10px;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .pagination-controls button {
+            margin: 0 5px;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            background-color: #fff;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .pagination-controls button:hover {
+            background-color: #f5f5f5;
+        }
+
+        .pagination-controls button:disabled {
+            background-color: #f9f9f9;
+            color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .sub-header {
+            margin-left: 20px;
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <h4 class="partialHeader" id="awsSearchHeader">Platform Metrics</h4>
+
+    <!-- Grouped View -->
+    <div id="groupedView">
+        <!-- Groups will be populated here -->
+    </div>
+
+    <!-- Handlebars Template -->
+    <script id="group-template" type="text/x-handlebars-template">
+        \{{#each platforms}}
+        <div class="group-container">
+            <div class="group-header" onclick="toggleCollapse('\{{this.platformId}}')">
+                <div class="group-title">
+                    <span>\{{this.platform}} (\{{this.totalItems}} items)</span>
+                    <div>
+                        <span class="group-status status-\{{this.status}}">\{{uppercase this.status}}</span>
+                        <span class="collapse-icon" id="icon-\{{this.platformId}}">▼</span>
+                    </div>
+                </div>
+            </div>
+            <div class="group-content" id="content-\{{this.platformId}}" style="display: none">
+                \{{#each this.subCategories}}
+                <div class="group-header sub-header" onclick="toggleCollapse('\{{this.subId}}')">
+                    <div class="group-title">
+                        <span>\{{this.name}} (\{{this.items.length}} items)</span>
+                        <div>
+                            <span class="group-status status-\{{this.status}}">\{{uppercase this.status}}</span>
+                            <span class="collapse-icon" id="icon-\{{this.subId}}">▶</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="group-content" id="content-\{{this.subId}}" style="display: none">
+                    <div class="group-filters">
+                        <label>Search: </label>
+                        <input type="text" id="search-\{{this.subId}}" placeholder="Search in \{{this.name}}..." onkeyup="searchSub('\{{../this.platformId}}', '\{{this.subId}}')" style="margin-right: 15px;">
+                        
+                        <label>Filter: </label>
+                        <select id="filter-\{{this.subId}}" onchange="filterSub('\{{../this.platformId}}', '\{{this.subId}}')">
+                            <option value="all">All</option>
+                            <option value="healthy">Healthy Only</option>
+                            <option value="unhealthy">Unhealthy Only</option>
+                        </select>
+                    </div>
+
+                    <table class="group-table">
+                        <thead>
+                            <tr>
+                                <th>Account</th>
+                                <th>Date</th>
+                                <th>Item</th>
+                                <th>Item Type</th>
+                                <th>Reason</th>
+                                <th>State</th>
+                                <th>ID</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-\{{this.subId}}">
+                            \{{#each this.items}}
+                            <tr>
+                                <td>\{{this.account}}</td>
+                                <td>\{{this.date}}</td>
+                                <td>\{{this.item}}</td>
+                                <td>\{{this.item_type}}</td>
+                                <td>\{{this.reason}}</td>
+                                <td style="color: \{{getStatusColor this.state}}">\{{this.state}}</td>
+                                <td>\{{this._id}}</td>
+                            </tr>
+                            \{{/each}}
+                        </tbody>
+                    </table>
+
+                    <div class="group-pagination" id="pagination-\{{this.subId}}" style="display: none;">
+                    </div>
+                </div>
+                \{{/each}}
             </div>
         </div>
-    </div>
-</div>
+        \{{/each}}
+    </script>
 
-<!-- Handlebars Template -->
-<script id="table-template" type="text/x-handlebars-template">
-    <div class="table-responsive">
-        <table class="table table-striped table-hover">
-            <thead class="table-dark">
-                <tr>
-                    <th>Platform</th>
-                    <th>Sub-Category</th>
-                    <th>Account</th>
-                    <th>Date</th>
-                    <th>Item</th>
-                    <th>State</th>
-                </tr>
-            </thead>
-            <tbody>
-                \{{#each items}}
-                <tr>
-                    <td>\{{this.platform}}</td>
-                    <td>\{{this.sub-category}}</td>
-                    <td>\{{this.account}}</td>
-                    <td>\{{this.date}}</td>
-                    <td>\{{this.item}}</td>
-                    <td>
-                        <span class="badge bg-\{{getBadgeClass this.state}}">
-                            \{{this.state}}
-                        </span>
-                    </td>
-                </tr>
-                \{{/each}}
-            </tbody>
-        </table>
-    </div>
-</script>
+    <script src="https://cdn.jsdelivr.net/npm/handlebars@4.7.8/dist/handlebars.min.js"></script>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/handlebars@4.7.8/dist/handlebars.min.js"></script>
+    <script>
+        // Global variables
+        let allData = [];
+        let groupSummary = [];
+        let collapseState = {};
+        let subPagination = {};
 
-<script>
-    Handlebars.registerHelper('getBadgeClass', function(state) {
-        if (!state) return 'secondary';
-        return state.toLowerCase() === 'healthy' ? 'success' : 'danger';
-    });
+        // Handlebars helpers
+        Handlebars.registerHelper('uppercase', function(text) {
+            return text ? text.toUpperCase() : '';
+        });
 
-    async function fetch_data() {
-        try {
-            const response = await fetch('/platformmetrics');
-            const data = await response.json();
-            console.log("Fetched data:", data);
-            if (!data.success) throw new Error(data.error || 'Failed to fetch data');
-            return data;
-        } catch (error) {
-            console.error("Error fetching data:", error);
-            throw error;
-        }
-    }
+        Handlebars.registerHelper('getStatusColor', function(state) {
+            if (!state) return 'black';
+            const stateLower = state.toLowerCase();
+            return stateLower === 'healthy' ? 'green' : stateLower === 'unhealthy' ? 'red' : 'black';
+        });
 
-    async function renderView() {
-        try {
-            const data = await fetch_data();
-            if (!data.data || data.data.length === 0) {
-                document.getElementById('groupedView').innerHTML = '<div class="alert alert-info">No data available</div>';
-                return;
+        // Fetch data
+        async function fetch_data(params = {}) {
+            const queryParams = new URLSearchParams();
+            Object.keys(params).forEach(key => {
+                if (params[key] !== null && params[key] !== undefined && params[key] !== '') {
+                    queryParams.append(key, params[key]);
+                }
+            });
+
+            const query = queryParams.toString() ? '?' + queryParams.toString() : '';
+            
+            try {
+                const response = await fetch('/platformmetrics' + query);
+                const data = await response.json();
+                
+                console.log("Fetched data:", data);
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to fetch data');
+                }
+                
+                return data;
+            } catch (error) {
+                console.error("Error fetching data:", error);
+                throw error;
             }
-            const source = document.getElementById('table-template').innerHTML;
-            const template = Handlebars.compile(source);
-            const html = template({ items: data.data });
-            document.getElementById('groupedView').innerHTML = html;
-            console.log("Rendered successfully");
-        } catch (error) {
-            console.error("Error in renderView:", error);
-            document.getElementById('groupedView').innerHTML = '<div class="alert alert-danger"><strong>Error:</strong> ' + error.message + '</div>';
         }
-    }
 
-    document.addEventListener('DOMContentLoaded', renderView);
-</script>
-{{#section 'styles'}}
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet">
-  <!-- Load lại styles.css để override Bootstrap -->
-  <link rel="stylesheet" href="/css/styles.css">
-{{/section}}
+        // Group data by platform and sub-category
+        function groupDataByPlatformAndSub(dataArray, groupSummary) {
+            const result = [];
+            const grouped = {};
+            
+            dataArray.forEach(item => {
+                const platform = item.platform || 'Unknown';
+                const subCategory = item['sub-category'] || 'Other';
+                
+                if (!grouped[platform]) {
+                    grouped[platform] = {};
+                }
+                
+                if (!grouped[platform][subCategory]) {
+                    grouped[platform][subCategory] = [];
+                }
+                
+                grouped[platform][subCategory].push(item);
+            });
+            
+            Object.entries(grouped).forEach(([platform, subs]) => {
+                const platformSummary = groupSummary.find(g => g.platform === platform);
+                const totalItems = Object.values(subs).reduce((sum, items) => sum + items.length, 0);
+                const platformId = platform.replace(/[^a-zA-Z0-9]/g, '_');
+                
+                const subCategories = Object.entries(subs).map(([name, items]) => {
+                    const status = items.some(i => i.state && i.state.toLowerCase() === 'unhealthy') 
+                        ? 'unhealthy' 
+                        : 'healthy';
+                    const subId = (platform + '_' + name).replace(/[^a-zA-Z0-9]/g, '_');
+                    
+                    return {
+                        name,
+                        items,
+                        status,
+                        subId,
+                        platformId: platform
+                    };
+                });
+                
+                result.push({
+                    platform,
+                    platformId,
+                    totalItems,
+                    status: platformSummary ? platformSummary.overallStatus : 'unknown',
+                    subCategories
+                });
+            });
+            
+            return result;
+        }
+
+        // Toggle collapse
+        function toggleCollapse(id) {
+            collapseState[id] = !collapseState[id];
+            const content = document.getElementById('content-' + id);
+            const icon = document.getElementById('icon-' + id);
+            
+            if (collapseState[id]) {
+                content.style.display = 'block';
+                if (icon) icon.textContent = '▼';
+            } else {
+                content.style.display = 'none';
+                if (icon) icon.textContent = '▶';
+            }
+        }
+
+        // Search/Filter for sub-category
+        function searchSub(platformId, subId) {
+            const searchInput = document.getElementById(`search-${subId}`);
+            const filterSelect = document.getElementById(`filter-${subId}`);
+            const search = searchInput.value.trim();
+            const state = filterSelect.value;
+            
+            filterTableRows(subId, search, state);
+        }
+
+        function filterSub(platformId, subId) {
+            const searchInput = document.getElementById(`search-${subId}`);
+            const filterSelect = document.getElementById(`filter-${subId}`);
+            const search = searchInput.value.trim();
+            const state = filterSelect.value;
+            
+            filterTableRows(subId, search, state);
+        }
+
+        // Filter table rows
+        function filterTableRows(subId, search, state) {
+            const tbody = document.getElementById(`tbody-${subId}`);
+            if (!tbody) return;
+
+            const rows = tbody.querySelectorAll('tr');
+            let visibleCount = 0;
+
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                const rowState = row.querySelector('td:nth-child(6)').textContent.toLowerCase();
+                
+                const matchSearch = search === '' || text.includes(search.toLowerCase());
+                const matchState = state === 'all' || rowState.includes(state);
+                
+                if (matchSearch && matchState) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            if (visibleCount === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px;">No items found</td></tr>';
+            }
+        }
+
+        // Render view using Handlebars
+        async function renderView() {
+            try {
+                const data = await fetch_data();
+                allData = data.data || [];
+                groupSummary = data.groupSummary || [];
+                
+                if (!allData.length) {
+                    document.getElementById('groupedView').innerHTML = '<div class="loading">No data available</div>';
+                    return;
+                }
+
+                const platforms = groupDataByPlatformAndSub(allData, groupSummary);
+                
+                const source = document.getElementById('group-template').innerHTML;
+                const template = Handlebars.compile(source);
+                const html = template({ platforms });
+                
+                document.getElementById('groupedView').innerHTML = html;
+                console.log("Rendered successfully");
+                
+            } catch (error) {
+                console.error("Error in renderView:", error);
+                document.getElementById('groupedView').innerHTML = `<div class="loading">Error: ${error.message}</div>`;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', renderView);
+    </script>
+</body>
+</html>
