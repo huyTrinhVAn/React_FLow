@@ -207,6 +207,70 @@
             expandedPlatforms: new Set()
         };
 
+        // Handlebars Setup - MUST BE FIRST
+        function setupHandlebars() {
+            console.log('Setting up Handlebars...');
+            
+            // Register helpers BEFORE compiling templates
+            Handlebars.registerHelper('uppercase', function(str) {
+                return str ? str.toUpperCase() : '';
+            });
+            
+            Handlebars.registerHelper('lowercase', function(str) {
+                return str ? str.toLowerCase() : '';
+            });
+            
+            Handlebars.registerHelper('formatDate', function(date) {
+                if (!date) return '';
+                try {
+                    return new Date(date).toLocaleDateString();
+                } catch(e) {
+                    return date;
+                }
+            });
+            
+            Handlebars.registerHelper('prevPage', function(page) {
+                return Math.max(1, page - 1);
+            });
+            
+            Handlebars.registerHelper('nextPage', function(page) {
+                return page + 1;
+            });
+            
+            Handlebars.registerHelper('startItem', function(pagination) {
+                if (!pagination) return 0;
+                return pagination.totalItems > 0 ? ((pagination.currentPage - 1) * pagination.itemsPerPage) + 1 : 0;
+            });
+            
+            Handlebars.registerHelper('endItem', function(pagination) {
+                if (!pagination) return 0;
+                return Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems);
+            });
+
+            // Register partials
+            const platformRowTemplate = document.getElementById('platform-row-template');
+            const subcategoryRowTemplate = document.getElementById('subcategory-row-template');
+            
+            if (platformRowTemplate) {
+                Handlebars.registerPartial('platformRow', platformRowTemplate.innerHTML);
+            }
+            
+            if (subcategoryRowTemplate) {
+                Handlebars.registerPartial('subcategoryRow', subcategoryRowTemplate.innerHTML);
+            }
+
+            // Compile templates
+            const mainTableTemplate = document.getElementById('main-table-template');
+            const subcategoryTableTemplate = document.getElementById('subcategory-table-template');
+            
+            window.templates = {
+                mainTable: mainTableTemplate ? Handlebars.compile(mainTableTemplate.innerHTML) : null,
+                subcategoryTable: subcategoryTableTemplate ? Handlebars.compile(subcategoryTableTemplate.innerHTML) : null
+            };
+            
+            console.log('Handlebars setup complete');
+        }
+
         // API Functions
         async function fetchData(params = {}) {
             const queryParams = new URLSearchParams({
@@ -241,35 +305,6 @@
                 console.error('Error fetching platform data:', error);
                 throw error;
             }
-        }
-
-        // Handlebars Setup
-        function setupHandlebars() {
-            // Register helpers
-            Handlebars.registerHelper('uppercase', str => str ? str.toUpperCase() : '');
-            Handlebars.registerHelper('lowercase', str => str ? str.toLowerCase() : '');
-            Handlebars.registerHelper('formatDate', date => {
-                if (!date) return '';
-                return new Date(date).toLocaleDateString();
-            });
-            Handlebars.registerHelper('prevPage', page => Math.max(1, page - 1));
-            Handlebars.registerHelper('nextPage', page => page + 1);
-            Handlebars.registerHelper('startItem', pagination => {
-                return pagination.totalItems > 0 ? ((pagination.currentPage - 1) * pagination.itemsPerPage) + 1 : 0;
-            });
-            Handlebars.registerHelper('endItem', pagination => {
-                return Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems);
-            });
-
-            // Register partials
-            Handlebars.registerPartial('platformRow', document.getElementById('platform-row-template').innerHTML);
-            Handlebars.registerPartial('subcategoryRow', document.getElementById('subcategory-row-template').innerHTML);
-
-            // Compile templates
-            window.templates = {
-                mainTable: Handlebars.compile(document.getElementById('main-table-template').innerHTML),
-                subcategoryTable: Handlebars.compile(document.getElementById('subcategory-table-template').innerHTML)
-            };
         }
 
         // Data Processing
@@ -311,6 +346,12 @@
             const container = document.getElementById('mainTableContainer');
             const loading = document.getElementById('loading');
             
+            if (!window.templates || !window.templates.mainTable) {
+                console.error('Templates not initialized!');
+                container.innerHTML = '<div class="alert alert-danger">Template error. Please refresh the page.</div>';
+                return;
+            }
+            
             loading.classList.remove('d-none');
             
             try {
@@ -320,6 +361,7 @@
                 container.innerHTML = window.templates.mainTable(processedData);
                 setupEventListeners();
             } catch (error) {
+                console.error('Render error:', error);
                 container.innerHTML = `<div class="alert alert-danger">Error loading data: ${error.message}</div>`;
             } finally {
                 loading.classList.add('d-none');
@@ -330,7 +372,16 @@
             const safeId = platform.replace(/[^a-zA-Z0-9]/g, '_');
             const container = document.querySelector(`[data-platform-content="${platform}"]`);
             
-            if (!container) return;
+            if (!container) {
+                console.error('Container not found for platform:', platform);
+                return;
+            }
+            
+            if (!window.templates || !window.templates.subcategoryTable) {
+                console.error('Subcategory template not initialized!');
+                container.innerHTML = '<div class="alert alert-danger m-3">Template error</div>';
+                return;
+            }
 
             try {
                 const data = await fetchPlatformData(platform);
@@ -348,6 +399,7 @@
                 
                 state.expandedPlatforms.add(platform);
             } catch (error) {
+                console.error('Error loading platform content:', error);
                 container.innerHTML = `<div class="alert alert-danger m-3">Error: ${error.message}</div>`;
             }
         }
@@ -428,8 +480,15 @@
 
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded, initializing...');
+            
+            // Setup Handlebars FIRST
             setupHandlebars();
-            renderMainTable();
+            
+            // Small delay to ensure everything is ready
+            setTimeout(() => {
+                renderMainTable();
+            }, 100);
         });
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
