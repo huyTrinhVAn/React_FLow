@@ -1,53 +1,58 @@
-<!-- views/platformmetrics.handlebars hoặc platformmetrics2.handlebars -->
+<!-- views/platformmetrics.handlebars -->
 
 <!-- Load Bootstrap -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 
 <style>
-    /* CRITICAL: Protect header và title từ Bootstrap reset */
+    /* Override Bootstrap resets - Keep original styles */
     
-    /* Reset body về mặc định */
+    /* Restore body margin */
     body {
-        margin: 0 !important;
+        margin: 8px !important; /* Giữ nguyên margin gốc */
         padding: 0 !important;
     }
     
-    /* Protect main title/header */
-    h1 {
-        margin-top: 20px !important;
-        margin-bottom: 20px !important;
-        padding: 20px !important;
-        font-size: 2em !important;
-        font-weight: bold !important;
+    /* Restore header styles from styles.css */
+    header {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        color: #323042 !important;
+        margin-bottom: 16px !important;
+        margin-top: 16px !important;
+        margin-left: 15px !important;
+        background-color: transparent !important;
+        background-position-y: top !important;
+        background-image: url(/img/weather.png) !important;
+        background-repeat: no-repeat !important;
     }
     
-    /* Nếu title có class cụ thể, protect nó */
-    .dashboard-title,
-    .main-title {
-        margin: 20px 0 !important;
-        padding: 20px !important;
-    }
-    
-    /* Protect navigation */
-    nav,
-    .navbar,
-    .navigation {
+    /* Prevent Bootstrap from affecting the title */
+    .header h1,
+    header h1 {
         margin: 0 !important;
-        padding: 10px 20px !important;
+        padding: 0 !important;
+        font-size: inherit !important;
+        font-weight: inherit !important;
     }
     
-    /* Content area cho Platform Metrics page */
-    .platform-content {
+    /* Content wrapper for Platform Metrics */
+    .platform-metrics-wrapper {
         padding: 20px;
-        margin-top: 20px; /* Space giữa header và content */
+        margin-top: 0;
+    }
+    
+    /* Ensure Bootstrap only affects table and components */
+    .bootstrap-scope {
+        /* Bootstrap classes work here */
     }
 </style>
 
-<!-- Content của page -->
-<div class="platform-content">
+<!-- Content -->
+<div class="platform-metrics-wrapper">
     <h4 style="margin-bottom: 20px;">Platform Metrics</h4>
     
-    <div id="groupedView">
+    <div id="groupedView" class="bootstrap-scope">
         <div class="text-center py-5">
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Loading...</span>
