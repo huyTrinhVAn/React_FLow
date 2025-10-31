@@ -2,495 +2,120 @@
 <html>
 <head>
     <title>Platform Metrics</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <script src="https://cdn.jsdelivr.net/npm/handlebars@4.7.8/dist/handlebars.min.js"></script>
-    <style>
-        .nested-table { margin-left: 20px; }
-        .platform-row { background-color: #f8f9fa; font-weight: bold; cursor: pointer; }
-        .platform-row:hover { background-color: #e9ecef; }
-        .subcategory-row { background-color: #ffffff; font-weight: 600; cursor: pointer; }
-        .subcategory-row:hover { background-color: #f8f9fa; }
-        .item-row { background-color: #fff; }
-        .status-healthy { color: #198754; font-weight: bold; }
-        .status-unhealthy { color: #dc3545; font-weight: bold; }
-        .collapse-icon { transition: transform 0.3s; }
-        .collapsed .collapse-icon { transform: rotate(-90deg); }
-        .search-section { background-color: #f8f9fa; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
-    <div class="container-fluid mt-4">
+    <div class="container-fluid py-4">
         <h4 class="mb-4">Platform Metrics</h4>
         
-        <!-- Search and Filter Section -->
-        <div class="search-section">
-            <div class="row g-3">
-                <div class="col-md-4">
-                    <input type="text" id="globalSearch" class="form-control" placeholder="Search across all platforms...">
-                </div>
-                <div class="col-md-3">
-                    <select id="globalFilter" class="form-select">
-                        <option value="all">All States</option>
-                        <option value="healthy">Healthy Only</option>
-                        <option value="unhealthy">Unhealthy Only</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <button id="applyFilters" class="btn btn-primary w-100">Apply</button>
-                </div>
-                <div class="col-md-3 text-end">
-                    <button id="expandAll" class="btn btn-outline-secondary">Expand All</button>
-                    <button id="collapseAll" class="btn btn-outline-secondary">Collapse All</button>
+        <div id="groupedView">
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
                 </div>
             </div>
         </div>
-
-        <!-- Loading Spinner -->
-        <div id="loading" class="text-center d-none">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-        </div>
-
-        <!-- Main Table Container -->
-        <div id="mainTableContainer"></div>
     </div>
 
-    <!-- Handlebars Templates -->
-    <script id="main-table-template" type="text/x-handlebars-template">
+    <!-- Handlebars Template -->
+    <script id="table-template" type="text/x-handlebars-template">
         <div class="table-responsive">
-            <table class="table table-bordered table-hover">
+            <table class="table table-striped table-hover">
                 <thead class="table-dark">
                     <tr>
-                        <th width="5%"></th>
-                        <th>Platform / Category / Item</th>
-                        <th width="15%">Account</th>
-                        <th width="12%">Date</th>
-                        <th width="15%">Type</th>
-                        <th width="12%">Status</th>
-                        <th width="10%">Count</th>
+                        <th>Platform</th>
+                        <th>Sub-Category</th>
+                        <th>Account</th>
+                        <th>Date</th>
+                        <th>Item</th>
+                        <th>State</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {{#each platforms}}
-                        {{> platformRow}}
-                    {{/each}}
+                    \{{#each items}}
+                    <tr>
+                        <td>\{{this.platform}}</td>
+                        <td>\{{this.sub-category}}</td>
+                        <td>\{{this.account}}</td>
+                        <td>\{{this.date}}</td>
+                        <td>\{{this.item}}</td>
+                        <td>
+                            <span class="badge bg-\{{getBadgeClass this.state}}">
+                                \{{this.state}}
+                            </span>
+                        </td>
+                    </tr>
+                    \{{/each}}
                 </tbody>
             </table>
         </div>
-        
-        {{#if pagination}}
-        <nav aria-label="Page navigation">
-            <ul class="pagination justify-content-center">
-                <li class="page-item {{#unless pagination.hasPreviousPage}}disabled{{/unless}}">
-                    <a class="page-link" href="#" data-page="1">First</a>
-                </li>
-                <li class="page-item {{#unless pagination.hasPreviousPage}}disabled{{/unless}}">
-                    <a class="page-link" href="#" data-page="{{prevPage pagination.currentPage}}">Previous</a>
-                </li>
-                <li class="page-item disabled">
-                    <span class="page-link">Page {{pagination.currentPage}} of {{pagination.totalPages}}</span>
-                </li>
-                <li class="page-item {{#unless pagination.hasNextPage}}disabled{{/unless}}">
-                    <a class="page-link" href="#" data-page="{{nextPage pagination.currentPage}}">Next</a>
-                </li>
-                <li class="page-item {{#unless pagination.hasNextPage}}disabled{{/unless}}">
-                    <a class="page-link" href="#" data-page="{{pagination.totalPages}}">Last</a>
-                </li>
-            </ul>
-            <p class="text-center text-muted">
-                Showing {{startItem pagination}} - {{endItem pagination}} of {{pagination.totalItems}} items
-            </p>
-        </nav>
-        {{/if}}
     </script>
 
-    <script id="platform-row-template" type="text/x-handlebars-template">
-        <tr class="platform-row" data-platform="{{platform}}" data-bs-toggle="collapse" data-bs-target="#platform-{{safeId}}">
-            <td>
-                <i class="bi bi-chevron-down collapse-icon"></i>
-            </td>
-            <td>
-                <i class="bi bi-hdd-stack me-2"></i>
-                <strong>{{platform}}</strong>
-            </td>
-            <td colspan="3"></td>
-            <td>
-                <span class="status-{{overallStatus}}">
-                    <i class="bi bi-circle-fill"></i> {{uppercase overallStatus}}
-                </span>
-            </td>
-            <td><span class="badge bg-secondary">{{totalItems}} items</span></td>
-        </tr>
-        <tr>
-            <td colspan="7" class="p-0">
-                <div class="collapse" id="platform-{{safeId}}">
-                    <div class="nested-table" data-platform-content="{{platform}}">
-                        <div class="text-center p-3">
-                            <div class="spinner-border spinner-border-sm text-primary" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </td>
-        </tr>
-    </script>
-
-    <script id="subcategory-table-template" type="text/x-handlebars-template">
-        <table class="table table-sm mb-0">
-            <tbody>
-                {{#each subcategories}}
-                    {{> subcategoryRow}}
-                {{/each}}
-            </tbody>
-        </table>
-    </script>
-
-    <script id="subcategory-row-template" type="text/x-handlebars-template">
-        <tr class="subcategory-row" data-subcategory="{{subcategory}}" data-bs-toggle="collapse" data-bs-target="#subcat-{{../platformSafeId}}-{{safeId}}">
-            <td width="5%">
-                <i class="bi bi-chevron-down collapse-icon ms-3"></i>
-            </td>
-            <td>
-                <i class="bi bi-folder me-2"></i>
-                {{subcategory}}
-            </td>
-            <td width="15%"></td>
-            <td width="12%"></td>
-            <td width="15%"></td>
-            <td width="12%">
-                <span class="status-{{overallStatus}}">
-                    <i class="bi bi-circle-fill"></i> {{uppercase overallStatus}}
-                </span>
-            </td>
-            <td width="10%"><span class="badge bg-info">{{totalItems}} items</span></td>
-        </tr>
-        <tr>
-            <td colspan="7" class="p-0">
-                <div class="collapse" id="subcat-{{../platformSafeId}}-{{safeId}}">
-                    <table class="table table-sm table-striped mb-0 ms-5">
-                        <tbody>
-                            {{#each items}}
-                            <tr class="item-row">
-                                <td width="5%"></td>
-                                <td>
-                                    <i class="bi bi-file-earmark me-2"></i>
-                                    {{item}}
-                                    {{#if reason}}
-                                    <br><small class="text-muted">{{reason}}</small>
-                                    {{/if}}
-                                </td>
-                                <td width="15%">{{account}}</td>
-                                <td width="12%">{{formatDate date}}</td>
-                                <td width="15%">{{item_type}}</td>
-                                <td width="12%">
-                                    <span class="status-{{lowercase state}}">{{state}}</span>
-                                </td>
-                                <td width="10%"><small class="text-muted">{{_id}}</small></td>
-                            </tr>
-                            {{/each}}
-                        </tbody>
-                    </table>
-                </div>
-            </td>
-        </tr>
-    </script>
-
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/handlebars@4.7.8/dist/handlebars.min.js"></script>
+    
     <script>
-        // State management
-        const state = {
-            currentPage: 1,
-            searchQuery: '',
-            filterState: 'all',
-            expandedPlatforms: new Set()
-        };
+        // Register Handlebars helper
+        Handlebars.registerHelper('getBadgeClass', function(state) {
+            if (!state) return 'secondary';
+            return state.toLowerCase() === 'healthy' ? 'success' : 'danger';
+        });
 
-        // Handlebars Setup - MUST BE FIRST
-        function setupHandlebars() {
-            console.log('Setting up Handlebars...');
-            
-            // Register helpers BEFORE compiling templates
-            Handlebars.registerHelper('uppercase', function(str) {
-                return str ? str.toUpperCase() : '';
-            });
-            
-            Handlebars.registerHelper('lowercase', function(str) {
-                return str ? str.toLowerCase() : '';
-            });
-            
-            Handlebars.registerHelper('formatDate', function(date) {
-                if (!date) return '';
-                try {
-                    return new Date(date).toLocaleDateString();
-                } catch(e) {
-                    return date;
-                }
-            });
-            
-            Handlebars.registerHelper('prevPage', function(page) {
-                return Math.max(1, page - 1);
-            });
-            
-            Handlebars.registerHelper('nextPage', function(page) {
-                return page + 1;
-            });
-            
-            Handlebars.registerHelper('startItem', function(pagination) {
-                if (!pagination) return 0;
-                return pagination.totalItems > 0 ? ((pagination.currentPage - 1) * pagination.itemsPerPage) + 1 : 0;
-            });
-            
-            Handlebars.registerHelper('endItem', function(pagination) {
-                if (!pagination) return 0;
-                return Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems);
-            });
-
-            // Register partials
-            const platformRowTemplate = document.getElementById('platform-row-template');
-            const subcategoryRowTemplate = document.getElementById('subcategory-row-template');
-            
-            if (platformRowTemplate) {
-                Handlebars.registerPartial('platformRow', platformRowTemplate.innerHTML);
-            }
-            
-            if (subcategoryRowTemplate) {
-                Handlebars.registerPartial('subcategoryRow', subcategoryRowTemplate.innerHTML);
-            }
-
-            // Compile templates
-            const mainTableTemplate = document.getElementById('main-table-template');
-            const subcategoryTableTemplate = document.getElementById('subcategory-table-template');
-            
-            window.templates = {
-                mainTable: mainTableTemplate ? Handlebars.compile(mainTableTemplate.innerHTML) : null,
-                subcategoryTable: subcategoryTableTemplate ? Handlebars.compile(subcategoryTableTemplate.innerHTML) : null
-            };
-            
-            console.log('Handlebars setup complete');
-        }
-
-        // API Functions
-        async function fetchData(params = {}) {
-            const queryParams = new URLSearchParams({
-                page: state.currentPage,
-                limit: 10,
-                ...params
-            });
-
-            if (state.searchQuery) queryParams.append('search', state.searchQuery);
-            if (state.filterState !== 'all') queryParams.append('state', state.filterState);
-
+        // Fetch data from API
+        async function fetch_data() {
             try {
-                const response = await fetch(`/platformmetrics?${queryParams}`);
+                const response = await fetch('/platformmetrics');
                 const data = await response.json();
                 
-                if (!data.success) throw new Error(data.error || 'Failed to fetch data');
+                console.log("Fetched data:", data);
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to fetch data');
+                }
+                
                 return data;
             } catch (error) {
-                console.error('Error fetching data:', error);
+                console.error("Error fetching data:", error);
                 throw error;
             }
         }
 
-        async function fetchPlatformData(platform) {
+        // Main render function
+        async function renderView() {
             try {
-                const response = await fetch(`/platformmetrics?platform=${encodeURIComponent(platform)}&limit=1000`);
-                const data = await response.json();
-                
-                if (!data.success) throw new Error(data.error || 'Failed to fetch platform data');
-                return data;
-            } catch (error) {
-                console.error('Error fetching platform data:', error);
-                throw error;
-            }
-        }
-
-        // Data Processing
-        function processData(data) {
-            return {
-                platforms: data.groupSummary.map(group => ({
-                    ...group,
-                    safeId: group.platform.replace(/[^a-zA-Z0-9]/g, '_')
-                })),
-                pagination: data.pagination
-            };
-        }
-
-        function groupBySubcategory(items) {
-            const groups = {};
-            
-            items.forEach(item => {
-                const subcat = item.subcategory || 'Uncategorized';
-                if (!groups[subcat]) {
-                    groups[subcat] = [];
-                }
-                groups[subcat].push(item);
-            });
-
-            return Object.entries(groups).map(([subcategory, items]) => {
-                const unhealthyCount = items.filter(i => i.state?.toLowerCase() === 'unhealthy').length;
-                return {
-                    subcategory,
-                    safeId: subcategory.replace(/[^a-zA-Z0-9]/g, '_'),
-                    items,
-                    totalItems: items.length,
-                    overallStatus: unhealthyCount > 0 ? 'unhealthy' : 'healthy'
-                };
-            });
-        }
-
-        // Render Functions
-        async function renderMainTable() {
-            const container = document.getElementById('mainTableContainer');
-            const loading = document.getElementById('loading');
-            
-            if (!window.templates || !window.templates.mainTable) {
-                console.error('Templates not initialized!');
-                container.innerHTML = '<div class="alert alert-danger">Template error. Please refresh the page.</div>';
-                return;
-            }
-            
-            loading.classList.remove('d-none');
-            
-            try {
-                const data = await fetchData();
-                const processedData = processData(data);
-                
-                container.innerHTML = window.templates.mainTable(processedData);
-                setupEventListeners();
-            } catch (error) {
-                console.error('Render error:', error);
-                container.innerHTML = `<div class="alert alert-danger">Error loading data: ${error.message}</div>`;
-            } finally {
-                loading.classList.add('d-none');
-            }
-        }
-
-        async function loadPlatformContent(platform) {
-            const safeId = platform.replace(/[^a-zA-Z0-9]/g, '_');
-            const container = document.querySelector(`[data-platform-content="${platform}"]`);
-            
-            if (!container) {
-                console.error('Container not found for platform:', platform);
-                return;
-            }
-            
-            if (!window.templates || !window.templates.subcategoryTable) {
-                console.error('Subcategory template not initialized!');
-                container.innerHTML = '<div class="alert alert-danger m-3">Template error</div>';
-                return;
-            }
-
-            try {
-                const data = await fetchPlatformData(platform);
+                const data = await fetch_data();
                 
                 if (!data.data || data.data.length === 0) {
-                    container.innerHTML = '<p class="text-center text-muted p-3">No items found</p>';
+                    document.getElementById('groupedView').innerHTML = `
+                        <div class="alert alert-info">No data available</div>
+                    `;
                     return;
                 }
-
-                const subcategories = groupBySubcategory(data.data);
-                container.innerHTML = window.templates.subcategoryTable({
-                    subcategories,
-                    platformSafeId: safeId
-                });
                 
-                state.expandedPlatforms.add(platform);
+                // Compile Handlebars template
+                const source = document.getElementById('table-template').innerHTML;
+                const template = Handlebars.compile(source);
+                
+                // Render
+                const html = template({ items: data.data });
+                document.getElementById('groupedView').innerHTML = html;
+                
+                console.log("Rendered successfully");
+                
             } catch (error) {
-                console.error('Error loading platform content:', error);
-                container.innerHTML = `<div class="alert alert-danger m-3">Error: ${error.message}</div>`;
+                console.error("Error in renderView:", error);
+                document.getElementById('groupedView').innerHTML = `
+                    <div class="alert alert-danger">
+                        <strong>Error:</strong> ${error.message}
+                    </div>
+                `;
             }
         }
 
-        // Event Handlers
-        function setupEventListeners() {
-            // Platform expansion
-            document.querySelectorAll('.platform-row').forEach(row => {
-                row.addEventListener('click', function() {
-                    const platform = this.dataset.platform;
-                    const collapseEl = document.getElementById(`platform-${platform.replace(/[^a-zA-Z0-9]/g, '_')}`);
-                    
-                    if (!state.expandedPlatforms.has(platform) && !collapseEl.classList.contains('show')) {
-                        loadPlatformContent(platform);
-                    }
-                    
-                    this.classList.toggle('collapsed');
-                });
-            });
-
-            // Subcategory expansion
-            document.addEventListener('click', function(e) {
-                const subcatRow = e.target.closest('.subcategory-row');
-                if (subcatRow) {
-                    subcatRow.classList.toggle('collapsed');
-                }
-            });
-
-            // Pagination
-            document.querySelectorAll('.pagination .page-link').forEach(link => {
-                link.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    if (this.parentElement.classList.contains('disabled')) return;
-                    
-                    const page = parseInt(this.dataset.page);
-                    if (page) {
-                        state.currentPage = page;
-                        renderMainTable();
-                    }
-                });
-            });
-        }
-
-        // Global Controls
-        document.getElementById('applyFilters').addEventListener('click', function() {
-            state.searchQuery = document.getElementById('globalSearch').value.trim();
-            state.filterState = document.getElementById('globalFilter').value;
-            state.currentPage = 1;
-            state.expandedPlatforms.clear();
-            renderMainTable();
-        });
-
-        document.getElementById('globalSearch').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                document.getElementById('applyFilters').click();
-            }
-        });
-
-        document.getElementById('expandAll').addEventListener('click', function() {
-            document.querySelectorAll('.collapse').forEach(el => {
-                const bsCollapse = new bootstrap.Collapse(el, { toggle: false });
-                bsCollapse.show();
-            });
-            document.querySelectorAll('.platform-row, .subcategory-row').forEach(row => {
-                row.classList.remove('collapsed');
-            });
-        });
-
-        document.getElementById('collapseAll').addEventListener('click', function() {
-            document.querySelectorAll('.collapse.show').forEach(el => {
-                const bsCollapse = new bootstrap.Collapse(el, { toggle: false });
-                bsCollapse.hide();
-            });
-            document.querySelectorAll('.platform-row, .subcategory-row').forEach(row => {
-                row.classList.add('collapsed');
-            });
-        });
-
-        // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('DOM loaded, initializing...');
-            
-            // Setup Handlebars FIRST
-            setupHandlebars();
-            
-            // Small delay to ensure everything is ready
-            setTimeout(() => {
-                renderMainTable();
-            }, 100);
-        });
+        // Load on page ready
+        document.addEventListener('DOMContentLoaded', renderView);
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
