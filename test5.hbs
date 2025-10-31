@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Platform Metrics</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-light">
+    <div class="container py-4">
+        <h4 class="mb-4">Platform Metrics</h4>
+        
+        <div id="groupedView">
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Handlebars Template for Platform/Sub/Items -->
+    <script id="platform-template" type="text/x-handlebars-template">
+        <div class="accordion" id="platformAccordion">
+            \{{#each platforms}}
+            <div class="accordion-item mb-2">
+                <h2 class="accordion-header" id="heading-platform-\{{@index}}">
+                    <button class="accordion-button collapsed" type="button" 
+                        data-bs-toggle="collapse" data-bs-target="#collapse-platform-\{{@index}}">
+                        <span class="fw-bold">\{{this.platform}}</span>
+                        <span class="ms-2 text-muted">(\{{this.totalItems}} items)</span>
+                        <span class="badge bg-\{{statusClass this.status}} ms-auto me-2">
+                            \{{uppercase this.status}}
+                        </span>
+                    </button>
+                </h2>
+                <div id="collapse-platform-\{{@index}}" class="accordion-collapse collapse" 
+                    data-bs-parent="#platformAccordion">
+                    <div class="accordion-body">
+                        <div class="accordion" id="subAccordion-\{{@index}}">
+                            \{{#each this.subCategories}}
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="heading-sub-\{{../this.platform}}-\{{@index}}">
+                                    <button class="accordion-button collapsed" type="button" 
+                                        data-bs-toggle="collapse" data-bs-target="#collapse-sub-\{{../this.platform}}-\{{@index}}">
+                                        <span>\{{this.name}}</span>
+                                        <span class="ms-2 text-muted">(\{{this.items.length}} items)</span>
+                                        <span class="badge bg-\{{statusClass this.status}} ms-auto me-2">
+                                            \{{uppercase this.status}}
+                                        </span>
+                                    </button>
+                                </h2>
+                                <div id="collapse-sub-\{{../this.platform}}-\{{@index}}" class="accordion-collapse collapse" 
+                                    data-bs-parent="#subAccordion-\{{../@index}}">
+                                    <div class="accordion-body">
+                                        <table class="table table-sm table-hover">
+                                            <thead class="table-dark">
+                                                <tr>
+                                                    <th>Account</th>
+                                                    <th>Date</th>
+                                                    <th>Item</th>
+                                                    <th>Item Type</th>
+                                                    <th>Reason</th>
+                                                    <th>State</th>
+                                                    <th>ID</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                \{{#each this.items}}
+                                                <tr>
+                                                    <td>\{{this.account}}</td>
+                                                    <td>\{{this.date}}</td>
+                                                    <td>\{{this.item}}</td>
+                                                    <td>\{{this.item_type}}</td>
+                                                    <td>\{{this.reason}}</td>
+                                                    <td>
+                                                        <span class="badge bg-\{{statusClass this.state}}">
+                                                            \{{this.state}}
+                                                        </span>
+                                                    </td>
+                                                    <td><small class="text-muted">\{{this._id}}</small></td>
+                                                </tr>
+                                                \{{/each}}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            \{{/each}}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            \{{/each}}
+        </div>
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/handlebars@4.7.8/dist/handlebars.min.js"></script>
+    
+    <script>
+        // Register Handlebars helpers
+        Handlebars.registerHelper('statusClass', function(status) {
+            if (!status) return 'secondary';
+            return status.toLowerCase() === 'healthy' ? 'success' : 'danger';
+        });
+
+        Handlebars.registerHelper('uppercase', function(text) {
+            return text ? text.toUpperCase() : '';
+        });
+
+        // Fetch data from API
+        async function fetch_data() {
+            try {
+                const response = await fetch('/platformmetrics');
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to fetch data');
+                }
+                
+                return data;
+            } catch (error) {
+                console.error("Error fetching data:", error);
+                throw error;
+            }
+        }
+
+        // Group data by platform and sub-category
+        function groupDataByPlatformAndSub(dataArray, groupSummary) {
+            const result = [];
+            const grouped = {};
+            
+            // Group by platform > sub-category
+            dataArray.forEach(item => {
+                const platform = item.platform || 'Unknown';
+                const subCategory = item['sub-category'] || 'Other';
+                
+                if (!grouped[platform]) {
+                    grouped[platform] = {};
+                }
+                
+                if (!grouped[platform][subCategory]) {
+                    grouped[platform][subCategory] = [];
+                }
+                
+                grouped[platform][subCategory].push(item);
+            });
+            
+            // Convert to array with status
+            Object.entries(grouped).forEach(([platform, subs]) => {
+                const platformSummary = groupSummary.find(g => g.platform === platform);
+                const totalItems = Object.values(subs).reduce((sum, items) => sum + items.length, 0);
+                
+                const subCategories = Object.entries(subs).map(([name, items]) => {
+                    const status = items.some(i => i.state && i.state.toLowerCase() === 'unhealthy') 
+                        ? 'unhealthy' 
+                        : 'healthy';
+                    
+                    return {
+                        name,
+                        items,
+                        status
+                    };
+                });
+                
+                result.push({
+                    platform,
+                    totalItems,
+                    status: platformSummary ? platformSummary.overallStatus : 'unknown',
+                    subCategories
+                });
+            });
+            
+            return result;
+        }
+
+        // Render using Handlebars
+        async function renderView() {
+            try {
+                const data = await fetch_data();
+                const platforms = groupDataByPlatformAndSub(data.data, data.groupSummary);
+                
+                // Compile template
+                const source = document.getElementById('platform-template').innerHTML;
+                const template = Handlebars.compile(source);
+                
+                // Render
+                const html = template({ platforms });
+                document.getElementById('groupedView').innerHTML = html;
+                
+            } catch (error) {
+                document.getElementById('groupedView').innerHTML = `
+                    <div class="alert alert-danger" role="alert">
+                        Error loading data: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // Load on page ready
+        document.addEventListener('DOMContentLoaded', renderView);
+    </script>
+</body>
+</html>
