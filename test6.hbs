@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Platform Metrics</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/handlebars@4.7.8/dist/handlebars.min.js"></script>
+    <style>
+        .nested-table { margin-left: 20px; }
+        .platform-row { background-color: #f8f9fa; font-weight: bold; cursor: pointer; }
+        .platform-row:hover { background-color: #e9ecef; }
+        .subcategory-row { background-color: #ffffff; font-weight: 600; cursor: pointer; }
+        .subcategory-row:hover { background-color: #f8f9fa; }
+        .item-row { background-color: #fff; }
+        .status-healthy { color: #198754; font-weight: bold; }
+        .status-unhealthy { color: #dc3545; font-weight: bold; }
+        .collapse-icon { transition: transform 0.3s; }
+        .collapsed .collapse-icon { transform: rotate(-90deg); }
+        .search-section { background-color: #f8f9fa; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid mt-4">
+        <h4 class="mb-4">Platform Metrics</h4>
+        
+        <!-- Search and Filter Section -->
+        <div class="search-section">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <input type="text" id="globalSearch" class="form-control" placeholder="Search across all platforms...">
+                </div>
+                <div class="col-md-3">
+                    <select id="globalFilter" class="form-select">
+                        <option value="all">All States</option>
+                        <option value="healthy">Healthy Only</option>
+                        <option value="unhealthy">Unhealthy Only</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button id="applyFilters" class="btn btn-primary w-100">Apply</button>
+                </div>
+                <div class="col-md-3 text-end">
+                    <button id="expandAll" class="btn btn-outline-secondary">Expand All</button>
+                    <button id="collapseAll" class="btn btn-outline-secondary">Collapse All</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="loading" class="text-center d-none">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+
+        <!-- Main Table Container -->
+        <div id="mainTableContainer"></div>
+    </div>
+
+    <!-- Handlebars Templates -->
+    <script id="main-table-template" type="text/x-handlebars-template">
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th width="5%"></th>
+                        <th>Platform / Category / Item</th>
+                        <th width="15%">Account</th>
+                        <th width="12%">Date</th>
+                        <th width="15%">Type</th>
+                        <th width="12%">Status</th>
+                        <th width="10%">Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each platforms}}
+                        {{> platformRow}}
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+        
+        {{#if pagination}}
+        <nav aria-label="Page navigation">
+            <ul class="pagination justify-content-center">
+                <li class="page-item {{#unless pagination.hasPreviousPage}}disabled{{/unless}}">
+                    <a class="page-link" href="#" data-page="1">First</a>
+                </li>
+                <li class="page-item {{#unless pagination.hasPreviousPage}}disabled{{/unless}}">
+                    <a class="page-link" href="#" data-page="{{prevPage pagination.currentPage}}">Previous</a>
+                </li>
+                <li class="page-item disabled">
+                    <span class="page-link">Page {{pagination.currentPage}} of {{pagination.totalPages}}</span>
+                </li>
+                <li class="page-item {{#unless pagination.hasNextPage}}disabled{{/unless}}">
+                    <a class="page-link" href="#" data-page="{{nextPage pagination.currentPage}}">Next</a>
+                </li>
+                <li class="page-item {{#unless pagination.hasNextPage}}disabled{{/unless}}">
+                    <a class="page-link" href="#" data-page="{{pagination.totalPages}}">Last</a>
+                </li>
+            </ul>
+            <p class="text-center text-muted">
+                Showing {{startItem pagination}} - {{endItem pagination}} of {{pagination.totalItems}} items
+            </p>
+        </nav>
+        {{/if}}
+    </script>
+
+    <script id="platform-row-template" type="text/x-handlebars-template">
+        <tr class="platform-row" data-platform="{{platform}}" data-bs-toggle="collapse" data-bs-target="#platform-{{safeId}}">
+            <td>
+                <i class="bi bi-chevron-down collapse-icon"></i>
+            </td>
+            <td>
+                <i class="bi bi-hdd-stack me-2"></i>
+                <strong>{{platform}}</strong>
+            </td>
+            <td colspan="3"></td>
+            <td>
+                <span class="status-{{overallStatus}}">
+                    <i class="bi bi-circle-fill"></i> {{uppercase overallStatus}}
+                </span>
+            </td>
+            <td><span class="badge bg-secondary">{{totalItems}} items</span></td>
+        </tr>
+        <tr>
+            <td colspan="7" class="p-0">
+                <div class="collapse" id="platform-{{safeId}}">
+                    <div class="nested-table" data-platform-content="{{platform}}">
+                        <div class="text-center p-3">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </td>
+        </tr>
+    </script>
+
+    <script id="subcategory-table-template" type="text/x-handlebars-template">
+        <table class="table table-sm mb-0">
+            <tbody>
+                {{#each subcategories}}
+                    {{> subcategoryRow}}
+                {{/each}}
+            </tbody>
+        </table>
+    </script>
+
+    <script id="subcategory-row-template" type="text/x-handlebars-template">
+        <tr class="subcategory-row" data-subcategory="{{subcategory}}" data-bs-toggle="collapse" data-bs-target="#subcat-{{../platformSafeId}}-{{safeId}}">
+            <td width="5%">
+                <i class="bi bi-chevron-down collapse-icon ms-3"></i>
+            </td>
+            <td>
+                <i class="bi bi-folder me-2"></i>
+                {{subcategory}}
+            </td>
+            <td width="15%"></td>
+            <td width="12%"></td>
+            <td width="15%"></td>
+            <td width="12%">
+                <span class="status-{{overallStatus}}">
+                    <i class="bi bi-circle-fill"></i> {{uppercase overallStatus}}
+                </span>
+            </td>
+            <td width="10%"><span class="badge bg-info">{{totalItems}} items</span></td>
+        </tr>
+        <tr>
+            <td colspan="7" class="p-0">
+                <div class="collapse" id="subcat-{{../platformSafeId}}-{{safeId}}">
+                    <table class="table table-sm table-striped mb-0 ms-5">
+                        <tbody>
+                            {{#each items}}
+                            <tr class="item-row">
+                                <td width="5%"></td>
+                                <td>
+                                    <i class="bi bi-file-earmark me-2"></i>
+                                    {{item}}
+                                    {{#if reason}}
+                                    <br><small class="text-muted">{{reason}}</small>
+                                    {{/if}}
+                                </td>
+                                <td width="15%">{{account}}</td>
+                                <td width="12%">{{formatDate date}}</td>
+                                <td width="15%">{{item_type}}</td>
+                                <td width="12%">
+                                    <span class="status-{{lowercase state}}">{{state}}</span>
+                                </td>
+                                <td width="10%"><small class="text-muted">{{_id}}</small></td>
+                            </tr>
+                            {{/each}}
+                        </tbody>
+                    </table>
+                </div>
+            </td>
+        </tr>
+    </script>
+
+    <script>
+        // State management
+        const state = {
+            currentPage: 1,
+            searchQuery: '',
+            filterState: 'all',
+            expandedPlatforms: new Set()
+        };
+
+        // API Functions
+        async function fetchData(params = {}) {
+            const queryParams = new URLSearchParams({
+                page: state.currentPage,
+                limit: 10,
+                ...params
+            });
+
+            if (state.searchQuery) queryParams.append('search', state.searchQuery);
+            if (state.filterState !== 'all') queryParams.append('state', state.filterState);
+
+            try {
+                const response = await fetch(`/platformmetrics?${queryParams}`);
+                const data = await response.json();
+                
+                if (!data.success) throw new Error(data.error || 'Failed to fetch data');
+                return data;
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                throw error;
+            }
+        }
+
+        async function fetchPlatformData(platform) {
+            try {
+                const response = await fetch(`/platformmetrics?platform=${encodeURIComponent(platform)}&limit=1000`);
+                const data = await response.json();
+                
+                if (!data.success) throw new Error(data.error || 'Failed to fetch platform data');
+                return data;
+            } catch (error) {
+                console.error('Error fetching platform data:', error);
+                throw error;
+            }
+        }
+
+        // Handlebars Setup
+        function setupHandlebars() {
+            // Register helpers
+            Handlebars.registerHelper('uppercase', str => str ? str.toUpperCase() : '');
+            Handlebars.registerHelper('lowercase', str => str ? str.toLowerCase() : '');
+            Handlebars.registerHelper('formatDate', date => {
+                if (!date) return '';
+                return new Date(date).toLocaleDateString();
+            });
+            Handlebars.registerHelper('prevPage', page => Math.max(1, page - 1));
+            Handlebars.registerHelper('nextPage', page => page + 1);
+            Handlebars.registerHelper('startItem', pagination => {
+                return pagination.totalItems > 0 ? ((pagination.currentPage - 1) * pagination.itemsPerPage) + 1 : 0;
+            });
+            Handlebars.registerHelper('endItem', pagination => {
+                return Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems);
+            });
+
+            // Register partials
+            Handlebars.registerPartial('platformRow', document.getElementById('platform-row-template').innerHTML);
+            Handlebars.registerPartial('subcategoryRow', document.getElementById('subcategory-row-template').innerHTML);
+
+            // Compile templates
+            window.templates = {
+                mainTable: Handlebars.compile(document.getElementById('main-table-template').innerHTML),
+                subcategoryTable: Handlebars.compile(document.getElementById('subcategory-table-template').innerHTML)
+            };
+        }
+
+        // Data Processing
+        function processData(data) {
+            return {
+                platforms: data.groupSummary.map(group => ({
+                    ...group,
+                    safeId: group.platform.replace(/[^a-zA-Z0-9]/g, '_')
+                })),
+                pagination: data.pagination
+            };
+        }
+
+        function groupBySubcategory(items) {
+            const groups = {};
+            
+            items.forEach(item => {
+                const subcat = item.subcategory || 'Uncategorized';
+                if (!groups[subcat]) {
+                    groups[subcat] = [];
+                }
+                groups[subcat].push(item);
+            });
+
+            return Object.entries(groups).map(([subcategory, items]) => {
+                const unhealthyCount = items.filter(i => i.state?.toLowerCase() === 'unhealthy').length;
+                return {
+                    subcategory,
+                    safeId: subcategory.replace(/[^a-zA-Z0-9]/g, '_'),
+                    items,
+                    totalItems: items.length,
+                    overallStatus: unhealthyCount > 0 ? 'unhealthy' : 'healthy'
+                };
+            });
+        }
+
+        // Render Functions
+        async function renderMainTable() {
+            const container = document.getElementById('mainTableContainer');
+            const loading = document.getElementById('loading');
+            
+            loading.classList.remove('d-none');
+            
+            try {
+                const data = await fetchData();
+                const processedData = processData(data);
+                
+                container.innerHTML = window.templates.mainTable(processedData);
+                setupEventListeners();
+            } catch (error) {
+                container.innerHTML = `<div class="alert alert-danger">Error loading data: ${error.message}</div>`;
+            } finally {
+                loading.classList.add('d-none');
+            }
+        }
+
+        async function loadPlatformContent(platform) {
+            const safeId = platform.replace(/[^a-zA-Z0-9]/g, '_');
+            const container = document.querySelector(`[data-platform-content="${platform}"]`);
+            
+            if (!container) return;
+
+            try {
+                const data = await fetchPlatformData(platform);
+                
+                if (!data.data || data.data.length === 0) {
+                    container.innerHTML = '<p class="text-center text-muted p-3">No items found</p>';
+                    return;
+                }
+
+                const subcategories = groupBySubcategory(data.data);
+                container.innerHTML = window.templates.subcategoryTable({
+                    subcategories,
+                    platformSafeId: safeId
+                });
+                
+                state.expandedPlatforms.add(platform);
+            } catch (error) {
+                container.innerHTML = `<div class="alert alert-danger m-3">Error: ${error.message}</div>`;
+            }
+        }
+
+        // Event Handlers
+        function setupEventListeners() {
+            // Platform expansion
+            document.querySelectorAll('.platform-row').forEach(row => {
+                row.addEventListener('click', function() {
+                    const platform = this.dataset.platform;
+                    const collapseEl = document.getElementById(`platform-${platform.replace(/[^a-zA-Z0-9]/g, '_')}`);
+                    
+                    if (!state.expandedPlatforms.has(platform) && !collapseEl.classList.contains('show')) {
+                        loadPlatformContent(platform);
+                    }
+                    
+                    this.classList.toggle('collapsed');
+                });
+            });
+
+            // Subcategory expansion
+            document.addEventListener('click', function(e) {
+                const subcatRow = e.target.closest('.subcategory-row');
+                if (subcatRow) {
+                    subcatRow.classList.toggle('collapsed');
+                }
+            });
+
+            // Pagination
+            document.querySelectorAll('.pagination .page-link').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (this.parentElement.classList.contains('disabled')) return;
+                    
+                    const page = parseInt(this.dataset.page);
+                    if (page) {
+                        state.currentPage = page;
+                        renderMainTable();
+                    }
+                });
+            });
+        }
+
+        // Global Controls
+        document.getElementById('applyFilters').addEventListener('click', function() {
+            state.searchQuery = document.getElementById('globalSearch').value.trim();
+            state.filterState = document.getElementById('globalFilter').value;
+            state.currentPage = 1;
+            state.expandedPlatforms.clear();
+            renderMainTable();
+        });
+
+        document.getElementById('globalSearch').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('applyFilters').click();
+            }
+        });
+
+        document.getElementById('expandAll').addEventListener('click', function() {
+            document.querySelectorAll('.collapse').forEach(el => {
+                const bsCollapse = new bootstrap.Collapse(el, { toggle: false });
+                bsCollapse.show();
+            });
+            document.querySelectorAll('.platform-row, .subcategory-row').forEach(row => {
+                row.classList.remove('collapsed');
+            });
+        });
+
+        document.getElementById('collapseAll').addEventListener('click', function() {
+            document.querySelectorAll('.collapse.show').forEach(el => {
+                const bsCollapse = new bootstrap.Collapse(el, { toggle: false });
+                bsCollapse.hide();
+            });
+            document.querySelectorAll('.platform-row, .subcategory-row').forEach(row => {
+                row.classList.add('collapsed');
+            });
+        });
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            setupHandlebars();
+            renderMainTable();
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
