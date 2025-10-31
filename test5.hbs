@@ -6,9 +6,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Fix overlap với header */
+        body {
+            padding-top: 70px; /* Điều chỉnh theo chiều cao header của bạn */
+        }
+        
+        /* Ensure proper spacing */
+        .content-wrapper {
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+        
+        /* Table responsive */
+        .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* Compact table for long content */
+        .table-sm td {
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        /* Expand on hover */
+        .table-sm td:hover {
+            white-space: normal;
+            overflow: visible;
+        }
+    </style>
 </head>
 <body class="bg-light">
-    <div class="container py-4">
+    <div class="container py-4 content-wrapper">
         <h4 class="mb-4">Platform Metrics</h4>
         
         <div id="groupedView">
@@ -20,7 +52,7 @@
         </div>
     </div>
 
-    <!-- Handlebars Template for Platform/Sub/Items -->
+    <!-- Handlebars Template -->
     <script id="platform-template" type="text/x-handlebars-template">
         <div class="accordion" id="platformAccordion">
             \{{#each platforms}}
@@ -53,37 +85,39 @@
                                 </h2>
                                 <div id="collapse-\{{this.id}}" class="accordion-collapse collapse" 
                                     data-bs-parent="#subAccordion-\{{../this.id}}">
-                                    <div class="accordion-body">
-                                        <table class="table table-sm table-hover">
-                                            <thead class="table-dark">
-                                                <tr>
-                                                    <th>Account</th>
-                                                    <th>Date</th>
-                                                    <th>Item</th>
-                                                    <th>Item Type</th>
-                                                    <th>Reason</th>
-                                                    <th>State</th>
-                                                    <th>ID</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                \{{#each this.items}}
-                                                <tr>
-                                                    <td>\{{this.account}}</td>
-                                                    <td>\{{this.date}}</td>
-                                                    <td>\{{this.item}}</td>
-                                                    <td>\{{this.item_type}}</td>
-                                                    <td>\{{this.reason}}</td>
-                                                    <td>
-                                                        <span class="badge bg-\{{statusClass this.state}}">
-                                                            \{{this.state}}
-                                                        </span>
-                                                    </td>
-                                                    <td><small class="text-muted">\{{this._id}}</small></td>
-                                                </tr>
-                                                \{{/each}}
-                                            </tbody>
-                                        </table>
+                                    <div class="accordion-body p-2">
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-hover mb-0">
+                                                <thead class="table-dark">
+                                                    <tr>
+                                                        <th>Account</th>
+                                                        <th>Date</th>
+                                                        <th>Item</th>
+                                                        <th>Item Type</th>
+                                                        <th>Reason</th>
+                                                        <th>State</th>
+                                                        <th>ID</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    \{{#each this.items}}
+                                                    <tr>
+                                                        <td>\{{this.account}}</td>
+                                                        <td>\{{this.date}}</td>
+                                                        <td>\{{this.item}}</td>
+                                                        <td>\{{this.item_type}}</td>
+                                                        <td title="\{{this.reason}}">\{{this.reason}}</td>
+                                                        <td>
+                                                            <span class="badge bg-\{{statusClass this.state}}">
+                                                                \{{this.state}}
+                                                            </span>
+                                                        </td>
+                                                        <td><small class="text-muted">\{{this._id}}</small></td>
+                                                    </tr>
+                                                    \{{/each}}
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -132,7 +166,6 @@
             const result = [];
             const grouped = {};
             
-            // Group by platform > sub-category
             dataArray.forEach(item => {
                 const platform = item.platform || 'Unknown';
                 const subCategory = item['sub-category'] || 'Other';
@@ -148,25 +181,23 @@
                 grouped[platform][subCategory].push(item);
             });
             
-            // Convert to array with status and IDs
             Object.entries(grouped).forEach(([platform, subs]) => {
                 const platformSummary = groupSummary.find(g => g.platform === platform);
                 const totalItems = Object.values(subs).reduce((sum, items) => sum + items.length, 0);
-                const platformId = platform.replace(/[^a-zA-Z0-9]/g, '_'); // Create safe ID
+                const platformId = platform.replace(/[^a-zA-Z0-9]/g, '_');
                 
                 const subCategories = Object.entries(subs).map(([name, items]) => {
                     const status = items.some(i => i.state && i.state.toLowerCase() === 'unhealthy') 
                         ? 'unhealthy' 
                         : 'healthy';
                     
-                    // Create unique sub-category ID
                     const subId = (platform + '_' + name).replace(/[^a-zA-Z0-9]/g, '_');
                     
                     return {
                         name,
                         items,
                         status,
-                        id: subId // Add ID to sub-category
+                        id: subId
                     };
                 });
                 
@@ -175,7 +206,7 @@
                     totalItems,
                     status: platformSummary ? platformSummary.overallStatus : 'unknown',
                     subCategories,
-                    id: platformId // Add ID to platform
+                    id: platformId
                 });
             });
             
@@ -186,21 +217,15 @@
         async function renderView() {
             try {
                 const data = await fetch_data();
-                console.log('Fetched data:', data); // Debug
-                
                 const platforms = groupDataByPlatformAndSub(data.data, data.groupSummary);
-                console.log('Grouped platforms:', platforms); // Debug
                 
-                // Compile template
                 const source = document.getElementById('platform-template').innerHTML;
                 const template = Handlebars.compile(source);
                 
-                // Render
                 const html = template({ platforms });
                 document.getElementById('groupedView').innerHTML = html;
                 
             } catch (error) {
-                console.error('Error in renderView:', error);
                 document.getElementById('groupedView').innerHTML = `
                     <div class="alert alert-danger" role="alert">
                         <strong>Error loading data:</strong> ${error.message}
@@ -209,7 +234,6 @@
             }
         }
 
-        // Load on page ready
         document.addEventListener('DOMContentLoaded', renderView);
     </script>
 </body>
