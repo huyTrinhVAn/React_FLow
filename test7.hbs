@@ -4,8 +4,6 @@
     <title>Platform Metrics</title>
     <link rel="stylesheet" href="/css/modal.css">
     <link rel="stylesheet" href="/css/datatables.css">
-    <script src="/js/datatables.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         table {
             width: 100%;
@@ -27,489 +25,120 @@
             background-color: #f9f9f9;
         }
 
-        .group-header {
-            background-color: #f5f5f5;
-            cursor: pointer;
-            border-bottom: 2px solid #ddd;
-            user-select: none;
-        }
-
-        .group-header:hover {
-            background-color: #e9ecef;
-        }
-
-        .group-title {
-            font-weight: bold;
-            padding: 15px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .group-status {
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: bold;
-        }
-
-        .status-healthy {
-            background-color: green;
-            color: white;
-        }
-
-        .status-unhealthy {
-            background-color: red;
-            color: white;
-        }
-
-        .collapse-icon {
-            font-size: 1.2rem;
-            transition: transform 0.3s ease;
-        }
-
-        .group-content {
-            display: none;
-            border-left: 3px solid #ddd;
-            padding-left: 10px;
-            margin-bottom: 10px;
-        }
-
-        .group-content.expanded {
-            display: block;
-        }
-
-        .group-filters {
-            background-color: #f8f9fa;
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 5px;
-        }
-
-        .group-filters input,
-        .group-filters select {
-            margin-right: 10px;
-            padding: 5px;
-        }
-
-        .group-pagination {
-            text-align: center;
-            margin-top: 15px;
-            padding: 10px;
-        }
-
-        .pagination-info {
-            margin-bottom: 10px;
-            color: #666;
-            font-size: 0.9rem;
-        }
-
-        .pagination-controls button {
-            margin: 0 5px;
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            background-color: #fff;
-            cursor: pointer;
-            border-radius: 4px;
-        }
-
-        .pagination-controls button:hover {
-            background-color: #f5f5f5;
-        }
-
-        .pagination-controls button:disabled {
-            background-color: #f9f9f9;
-            color: #ccc;
-            cursor: not-allowed;
-        }
-
         .loading {
             text-align: center;
             padding: 20px;
             color: #666;
         }
-
-        .sub-header {
-            margin-left: 20px;
-            background-color: #f8f9fa;
-        }
     </style>
 </head>
 <body>
-    <h4 class="partialHeader" id="awsSearchHeader">Platform Metrics</h4>
+    <h4 class="partialHeader">Platform Metrics</h4>
 
-    <div id="groupedView">
+    <div id="dataView">
         <div class="loading">Loading...</div>
     </div>
 
-    <!-- Handlebars Template -->
-    <script id="group-template" type="text/x-handlebars-template">
-        \{{#each platforms}}
-        <div class="group-container">
-            <div class="group-header" onclick="togglePlatform('\{{this.platformId}}')">
-                <div class="group-title">
-                    <span>\{{this.platform}} (\{{this.totalItems}} items)</span>
-                    <div>
-                        <span class="group-status status-\{{this.overallStatus}}">\{{uppercase this.overallStatus}}</span>
-                        <span class="collapse-icon" id="icon-\{{this.platformId}}">▶</span>
-                    </div>
-                </div>
-            </div>
-            <div class="group-content" id="content-\{{this.platformId}}">
-                \{{#each this.subCategories}}
-                <div class="group-header sub-header" onclick="toggleSub('\{{../this.platform}}', '\{{this.name}}', '\{{this.subId}}')">
-                    <div class="group-title">
-                        <span>\{{this.name}}</span>
-                        <span class="collapse-icon" id="icon-\{{this.subId}}">▶</span>
-                    </div>
-                </div>
-                <div class="group-content" id="content-\{{this.subId}}">
-                    <div class="group-filters">
-                        <label>Search: </label>
-                        <input type="text" id="search-\{{this.subId}}" placeholder="Search..." onkeyup="handleSearchFilter('\{{../this.platform}}', '\{{this.name}}', '\{{this.subId}}')">
-                        
-                        <label>Filter: </label>
-                        <select id="filter-\{{this.subId}}" onchange="handleSearchFilter('\{{../this.platform}}', '\{{this.name}}', '\{{this.subId}}')">
-                            <option value="all">All</option>
-                            <option value="Healthy">Healthy Only</option>
-                            <option value="Unhealthy">Unhealthy Only</option>
-                        </select>
-                    </div>
-
-                    <table class="group-table">
-                        <thead>
-                            <tr>
-                                <th>Account</th>
-                                <th>Date</th>
-                                <th>Item</th>
-                                <th>Item Type</th>
-                                <th>Reason</th>
-                                <th>State</th>
-                                <th>ID</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbody-\{{this.subId}}">
-                            <tr><td colspan="7" class="loading">Click to load...</td></tr>
-                        </tbody>
-                    </table>
-
-                    <div class="group-pagination" id="pagination-\{{this.subId}}"></div>
-                </div>
+    <!-- HANDLEBARS TEMPLATE -->
+    <script id="data-template" type="text/x-handlebars-template">
+        <table>
+            <thead>
+                <tr>
+                    <th>Platform</th>
+                    <th>Sub-Category</th>
+                    <th>Account</th>
+                    <th>Date</th>
+                    <th>Item</th>
+                    <th>Item Type</th>
+                    <th>State</th>
+                    <th>Reason</th>
+                </tr>
+            </thead>
+            <tbody>
+                \{{#each items}}
+                <tr>
+                    <td>\{{this.platform}}</td>
+                    <td>\{{this.sub-category}}</td>
+                    <td>\{{this.account}}</td>
+                    <td>\{{this.date}}</td>
+                    <td>\{{this.item}}</td>
+                    <td>\{{this.item_type}}</td>
+                    <td style="color: \{{#if (eq this.state 'Healthy')}}green\{{else}}red\{{/if}}">\{{this.state}}</td>
+                    <td>\{{this.reason}}</td>
+                </tr>
                 \{{/each}}
-            </div>
-        </div>
-        \{{/each}}
+            </tbody>
+        </table>
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/handlebars@4.7.8/dist/handlebars.min.js"></script>
 
     <script>
-        // ========================================
-        // GLOBAL STATE
-        // ========================================
-        let allData = [];
-        let groupSummary = [];
-        let collapseState = {};
-        let subDataCache = {}; // Cache để tránh load lại
-
-        // ========================================
-        // HANDLEBARS HELPERS
-        // ========================================
-        Handlebars.registerHelper('uppercase', function(text) {
-            return text ? text.toUpperCase() : '';
+        // HANDLEBARS HELPER
+        Handlebars.registerHelper('eq', function(a, b) {
+            return a === b;
         });
 
-        // ========================================
-        // FETCH DATA FROM API
-        // ========================================
-        async function fetchData(params = {}) {
-            const queryParams = new URLSearchParams();
-            
-            Object.keys(params).forEach(key => {
-                if (params[key] !== null && params[key] !== undefined && params[key] !== '') {
-                    queryParams.append(key, params[key]);
-                }
-            });
-
-            const query = queryParams.toString() ? '?' + queryParams.toString() : '';
-            
+        // FETCH DATA
+        async function fetchData() {
             try {
-                console.log('🔄 Fetching:', '/platformmetrics' + query);
-                const response = await fetch('/platformmetrics' + query);
-                const data = await response.json();
+                console.log('📥 Fetching data from /platformmetrics...');
+                const response = await fetch('/platformmetrics');
+                const result = await response.json();
                 
-                console.log('✅ Response:', data);
+                console.log('✅ API Response:', result);
                 
-                if (!data.success) {
-                    throw new Error(data.error || 'Failed to fetch data');
+                if (!result.success) {
+                    throw new Error(result.error || 'Failed to fetch');
                 }
                 
-                return data;
+                return result;
             } catch (error) {
                 console.error('❌ Fetch error:', error);
                 throw error;
             }
         }
 
-        // ========================================
-        // BUILD PLATFORM STRUCTURE
-        // ========================================
-        function buildPlatformStructure(groupSummary, allData) {
-            console.log('🔨 Building platform structure...');
-            console.log('📊 Group Summary:', groupSummary);
-            console.log('📦 All Data:', allData);
-            
-            const platformSubMap = {};
-            
-            // Tạo map platform -> sub-categories
-            allData.forEach(item => {
-                const platform = item.platform || 'Unknown';
-                const subCategory = item['sub-category'] || 'Other';
-                
-                if (!platformSubMap[platform]) {
-                    platformSubMap[platform] = new Set();
-                }
-                platformSubMap[platform].add(subCategory);
-            });
-            
-            console.log('🗂️ Platform-Sub Map:', platformSubMap);
-            
-            // Build final structure
-            const result = groupSummary.map(summary => {
-                const platform = summary.platform;
-                const platformId = platform.replace(/[^a-zA-Z0-9]/g, '_');
-                
-                const subCategories = [];
-                if (platformSubMap[platform]) {
-                    platformSubMap[platform].forEach(subName => {
-                        const subId = (platform + '_' + subName).replace(/[^a-zA-Z0-9]/g, '_');
-                        subCategories.push({
-                            name: subName,
-                            subId: subId
-                        });
-                    });
-                }
-                
-                return {
-                    platform: platform,
-                    platformId: platformId,
-                    totalItems: summary.totalItems,
-                    overallStatus: summary.overallStatus,
-                    subCategories: subCategories
-                };
-            });
-            
-            console.log('✅ Platform structure built:', result);
-            return result;
-        }
-
-        // ========================================
-        // TOGGLE PLATFORM COLLAPSE
-        // ========================================
-        function togglePlatform(platformId) {
-            console.log('🔽 Toggle platform:', platformId);
-            
-            collapseState[platformId] = !collapseState[platformId];
-            const content = document.getElementById('content-' + platformId);
-            const icon = document.getElementById('icon-' + platformId);
-            
-            if (!content || !icon) {
-                console.warn('⚠️ Platform elements not found:', platformId);
-                return;
-            }
-            
-            if (collapseState[platformId]) {
-                content.classList.add('expanded');
-                icon.textContent = '▼';
-            } else {
-                content.classList.remove('expanded');
-                icon.textContent = '▶';
-            }
-        }
-
-        // ========================================
-        // TOGGLE SUB-CATEGORY & LOAD DATA
-        // ========================================
-        async function toggleSub(platform, subCategory, subId) {
-            console.log('🔽 Toggle sub:', {platform, subCategory, subId});
-            
-            collapseState[subId] = !collapseState[subId];
-            const content = document.getElementById('content-' + subId);
-            const icon = document.getElementById('icon-' + subId);
-            
-            if (!content || !icon) {
-                console.warn('⚠️ Sub elements not found:', subId);
-                return;
-            }
-            
-            if (collapseState[subId]) {
-                content.classList.add('expanded');
-                icon.textContent = '▼';
-                
-                // Load data lần đầu
-                const tbody = document.getElementById('tbody-' + subId);
-                if (tbody && tbody.innerHTML.includes('Click to load')) {
-                    await loadSubData(platform, subCategory, subId, 1);
-                }
-            } else {
-                content.classList.remove('expanded');
-                icon.textContent = '▶';
-            }
-        }
-
-        // ========================================
-        // LOAD SUB-CATEGORY DATA
-        // ========================================
-        async function loadSubData(platform, subCategory, subId, page = 1) {
-            console.log('📥 Loading sub data:', {platform, subCategory, subId, page});
-            
-            const tbody = document.getElementById('tbody-' + subId);
-            const searchInput = document.getElementById('search-' + subId);
-            const filterSelect = document.getElementById('filter-' + subId);
-            
-            if (!tbody) {
-                console.warn('⚠️ tbody not found:', subId);
-                return;
-            }
-            
-            const search = searchInput ? searchInput.value.trim() : '';
-            const state = filterSelect ? filterSelect.value : 'all';
-            
-            tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading...</td></tr>';
-
-            try {
-                const params = {
-                    platform: platform,
-                    'sub-category': subCategory,
-                    page: page,
-                    limit: 10
-                };
-
-                if (search) params.search = search;
-                if (state !== 'all') params.state = state;
-
-                const data = await fetchData(params);
-                
-                tbody.innerHTML = '';
-
-                if (!data.data || data.data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #666; padding: 20px;">No items found</td></tr>';
-                    document.getElementById('pagination-' + subId).innerHTML = '';
-                    return;
-                }
-
-                // Render rows
-                data.data.forEach(item => {
-                    const row = document.createElement('tr');
-                    const statusColor = item.state === 'Healthy' ? 'green' : 'red';
-                    row.innerHTML = `
-                        <td>${item.account || ''}</td>
-                        <td>${item.date || ''}</td>
-                        <td>${item.item || ''}</td>
-                        <td>${item.item_type || ''}</td>
-                        <td>${item.reason || ''}</td>
-                        <td style="color: ${statusColor}">${item.state || ''}</td>
-                        <td>${item._id || ''}</td>
-                    `;
-                    tbody.appendChild(row);
-                });
-
-                // Update pagination
-                if (data.pagination) {
-                    updatePagination(platform, subCategory, subId, data.pagination);
-                }
-
-            } catch (error) {
-                console.error('❌ Load sub data error:', error);
-                tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: red; padding: 20px;">Error: ${error.message}</td></tr>`;
-            }
-        }
-
-        // ========================================
-        // UPDATE PAGINATION
-        // ========================================
-        function updatePagination(platform, subCategory, subId, paginationData) {
-            console.log('📄 Update pagination:', {subId, paginationData});
-            
-            const { currentPage, totalPages, totalItems, itemsPerPage, hasNextPage, hasPreviousPage } = paginationData;
-            const paginationContainer = document.getElementById('pagination-' + subId);
-            
-            if (!paginationContainer) {
-                console.warn('⚠️ Pagination container not found:', subId);
-                return;
-            }
-
-            if (totalPages <= 1) {
-                paginationContainer.innerHTML = '';
-                return;
-            }
-
-            const startItem = totalItems > 0 ? ((currentPage - 1) * itemsPerPage) + 1 : 0;
-            const endItem = Math.min(currentPage * itemsPerPage, totalItems);
-
-            paginationContainer.innerHTML = `
-                <div class="pagination-info">
-                    Showing ${startItem}-${endItem} of ${totalItems} items
-                </div>
-                <div class="pagination-controls">
-                    <button onclick="loadSubData('${platform}', '${subCategory}', '${subId}', 1)" ${!hasPreviousPage ? 'disabled' : ''}>First</button>
-                    <button onclick="loadSubData('${platform}', '${subCategory}', '${subId}', ${currentPage - 1})" ${!hasPreviousPage ? 'disabled' : ''}>Previous</button>
-                    <span style="margin: 0 10px;">Page ${currentPage} of ${totalPages}</span>
-                    <button onclick="loadSubData('${platform}', '${subCategory}', '${subId}', ${currentPage + 1})" ${!hasNextPage ? 'disabled' : ''}>Next</button>
-                    <button onclick="loadSubData('${platform}', '${subCategory}', '${subId}', ${totalPages})" ${!hasNextPage ? 'disabled' : ''}>Last</button>
-                </div>
-            `;
-        }
-
-        // ========================================
-        // HANDLE SEARCH/FILTER
-        // ========================================
-        function handleSearchFilter(platform, subCategory, subId) {
-            console.log('🔍 Search/Filter:', {platform, subCategory, subId});
-            loadSubData(platform, subCategory, subId, 1); // Reset về page 1
-        }
-
-        // ========================================
-        // RENDER INITIAL VIEW
-        // ========================================
-        async function renderView() {
-            console.log('🎬 Starting render...');
+        // RENDER WITH HANDLEBARS
+        function renderTable(data) {
+            console.log('📊 Rendering', data.length, 'items with Handlebars...');
             
             try {
-                const data = await fetchData({});
-                
-                allData = data.data || [];
-                groupSummary = data.groupSummary || [];
-                
-                console.log('📦 Loaded allData:', allData.length, 'items');
-                console.log('📊 Loaded groupSummary:', groupSummary.length, 'platforms');
-                
-                if (!groupSummary.length) {
-                    document.getElementById('groupedView').innerHTML = '<div class="loading">No data available</div>';
-                    return;
-                }
-
-                const platforms = buildPlatformStructure(groupSummary, allData);
-                
-                const source = document.getElementById('group-template').innerHTML;
+                const source = document.getElementById('data-template').innerHTML;
                 const template = Handlebars.compile(source);
-                const html = template({ platforms });
+                const html = template({ items: data });
                 
-                document.getElementById('groupedView').innerHTML = html;
-                console.log('✅ Render complete!');
-                
+                document.getElementById('dataView').innerHTML = html;
+                console.log('✅ Table rendered successfully!');
             } catch (error) {
-                console.error('❌ Render error:', error);
-                document.getElementById('groupedView').innerHTML = `<div class="loading" style="color: red;">Error: ${error.message}</div>`;
+                console.error('❌ Template error:', error);
+                document.getElementById('dataView').innerHTML = `<div class="loading" style="color: red;">Template error: ${error.message}</div>`;
             }
         }
 
-        // ========================================
-        // INITIALIZE
-        // ========================================
+        // MAIN FUNCTION
+        async function init() {
+            try {
+                const result = await fetchData();
+                
+                if (!result.data || result.data.length === 0) {
+                    document.getElementById('dataView').innerHTML = '<div class="loading">No data found</div>';
+                    return;
+                }
+                
+                console.log('📦 Got', result.data.length, 'items from API');
+                renderTable(result.data);
+                
+            } catch (error) {
+                console.error('❌ Init error:', error);
+                document.getElementById('dataView').innerHTML = `<div class="loading" style="color: red;">Error: ${error.message}</div>`;
+            }
+        }
+
+        // START
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🚀 Page loaded, starting...');
-            renderView();
+            init();
         });
     </script>
 </body>
