@@ -93,6 +93,7 @@
             border-radius: 15px;
             font-size: 12px;
             margin-left: 10px;
+            font-weight: bold;
         }
 
         .status-healthy {
@@ -130,9 +131,12 @@
             <div class="platform-content" id="content-\{{this.platformId}}">
                 \{{#each this.subCategories}}
                 <div>
-                    <!-- SUB-CATEGORY HEADER -->
+                    <!-- SUB-CATEGORY HEADER WITH STATUS -->
                     <div class="sub-header" onclick="toggleSub('\{{../this.platformId}}', '\{{this.subId}}')">
-                        <span>\{{this.name}} (\{{this.count}} items)</span>
+                        <div>
+                            <span>\{{this.name}} (\{{this.count}} items)</span>
+                            <span class="group-status status-\{{this.status}}">\{{uppercase this.status}}</span>
+                        </div>
                         <span class="collapse-icon" id="icon-\{{this.subId}}">▶</span>
                     </div>
 
@@ -236,10 +240,17 @@
                     const subId = (platform + '_' + sub).replace(/[^a-zA-Z0-9]/g, '_');
                     const items = grouped[platform][sub];
                     
+                    // ✅ CALCULATE SUB STATUS: if any item is unhealthy, sub is unhealthy
+                    const hasUnhealthy = items.some(item => item.state === 'Unhealthy');
+                    const subStatus = hasUnhealthy ? 'unhealthy' : 'healthy';
+                    
+                    console.log(`  Sub: ${sub} => ${subStatus} (${items.length} items)`);
+                    
                     subCategories.push({
                         name: sub,
                         subId: subId,
                         count: items.length,
+                        status: subStatus,  // ✅ NEW: Sub status
                         items: items
                     });
                 });
