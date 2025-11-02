@@ -2,157 +2,515 @@
 <html>
 <head>
     <title>Platform Metrics</title>
+    <link rel="stylesheet" href="/css/modal.css">
+    <link rel="stylesheet" href="/css/datatables.css">
+    <script src="/js/datatables.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { padding: 32px; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #ccc; padding: 8px 12px; text-align: left; }
-        th { background: #870e40; color: #fff; }
-        tr:nth-child(even) { background: #f9f9f9; }
-        .group-header { background: #f5f5f5; cursor: pointer; font-weight: bold; padding: 12px; border-bottom: 2px solid #ddd; }
-        .group-header:hover { background: #e9ecef; }
-        .sub-header { margin-left: 24px; }
-        .collapse-icon { font-size: 12px; margin-left: 8px; }
-        .group-content { display: none; border-left: 3px solid #ddd; padding-left: 10px; margin-bottom: 10px; }
-        .group-content.expanded { display: block; }
-        .group-status { margin-right: 8px; padding:2px 10px; border-radius: 10px; font-size: 12px; }
-        .status-healthy { background: green; color: #fff; }
-        .status-unhealthy { background: red; color: #fff; }
-        .group-pagination { margin-top: 8px; text-align: center; }
-        .pagination-controls button { margin: 0 2px; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            border: 1px solid #ccc;
+            padding: 12px 15px;
+            text-align: left;
+        }
+        
+        th {
+            background-color: #870e40;
+            color: #f2f2f2;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        .group-header {
+            background-color: #f5f5f5;
+            cursor: pointer;
+            border-bottom: 2px solid #ddd;
+            user-select: none;
+        }
+
+        .group-header:hover {
+            background-color: #e9ecef;
+        }
+
+        .group-title {
+            font-weight: bold;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .group-status {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .status-healthy {
+            background-color: green;
+            color: white;
+        }
+
+        .status-unhealthy {
+            background-color: red;
+            color: white;
+        }
+
+        .collapse-icon {
+            font-size: 1.2rem;
+            transition: transform 0.3s ease;
+        }
+
+        .group-content {
+            display: none;
+            border-left: 3px solid #ddd;
+            padding-left: 10px;
+            margin-bottom: 10px;
+        }
+
+        .group-content.expanded {
+            display: block;
+        }
+
+        .group-filters {
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+
+        .group-filters input,
+        .group-filters select {
+            margin-right: 10px;
+            padding: 5px;
+        }
+
+        .group-pagination {
+            text-align: center;
+            margin-top: 15px;
+            padding: 10px;
+        }
+
+        .pagination-info {
+            margin-bottom: 10px;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .pagination-controls button {
+            margin: 0 5px;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            background-color: #fff;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .pagination-controls button:hover {
+            background-color: #f5f5f5;
+        }
+
+        .pagination-controls button:disabled {
+            background-color: #f9f9f9;
+            color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .sub-header {
+            margin-left: 20px;
+            background-color: #f8f9fa;
+        }
     </style>
 </head>
 <body>
-    <h2>Platform Metrics</h2>
-    <div id="groupedView">Loading...</div>
+    <h4 class="partialHeader" id="awsSearchHeader">Platform Metrics</h4>
+
+    <div id="groupedView">
+        <div class="loading">Loading...</div>
+    </div>
 
     <!-- Handlebars Template -->
     <script id="group-template" type="text/x-handlebars-template">
-        {{#each platforms}}
-        <div>
-            <div class="group-header" onclick="toggleCollapse('{{platformId}}')">
-                <span>{{platform}} ({{totalItems}} items)</span>
-                <span class="group-status status-{{overallStatus}}">{{overallStatus}}</span>
-                <span class="collapse-icon" id="icon-{{platformId}}">▼</span>
-            </div>
-            <div class="group-content" id="content-{{platformId}}">
-                {{#each subCategories}}
-                <div>
-                    <div class="group-header sub-header" onclick="toggleCollapse('{{subId}}')">
-                        <span>{{name}}</span>
-                        <span class="collapse-icon" id="icon-{{subId}}">▶</span>
-                    </div>
-                    <div class="group-content" id="content-{{subId}}">
-                        <div id="sub-table-{{subId}}">Loading...</div>
-                        <div class="group-pagination" id="pagination-{{subId}}"></div>
+        \{{#each platforms}}
+        <div class="group-container">
+            <div class="group-header" onclick="togglePlatform('\{{this.platformId}}')">
+                <div class="group-title">
+                    <span>\{{this.platform}} (\{{this.totalItems}} items)</span>
+                    <div>
+                        <span class="group-status status-\{{this.overallStatus}}">\{{uppercase this.overallStatus}}</span>
+                        <span class="collapse-icon" id="icon-\{{this.platformId}}">▶</span>
                     </div>
                 </div>
-                {{/each}}
+            </div>
+            <div class="group-content" id="content-\{{this.platformId}}">
+                \{{#each this.subCategories}}
+                <div class="group-header sub-header" onclick="toggleSub('\{{../this.platform}}', '\{{this.name}}', '\{{this.subId}}')">
+                    <div class="group-title">
+                        <span>\{{this.name}}</span>
+                        <span class="collapse-icon" id="icon-\{{this.subId}}">▶</span>
+                    </div>
+                </div>
+                <div class="group-content" id="content-\{{this.subId}}">
+                    <div class="group-filters">
+                        <label>Search: </label>
+                        <input type="text" id="search-\{{this.subId}}" placeholder="Search..." onkeyup="handleSearchFilter('\{{../this.platform}}', '\{{this.name}}', '\{{this.subId}}')">
+                        
+                        <label>Filter: </label>
+                        <select id="filter-\{{this.subId}}" onchange="handleSearchFilter('\{{../this.platform}}', '\{{this.name}}', '\{{this.subId}}')">
+                            <option value="all">All</option>
+                            <option value="Healthy">Healthy Only</option>
+                            <option value="Unhealthy">Unhealthy Only</option>
+                        </select>
+                    </div>
+
+                    <table class="group-table">
+                        <thead>
+                            <tr>
+                                <th>Account</th>
+                                <th>Date</th>
+                                <th>Item</th>
+                                <th>Item Type</th>
+                                <th>Reason</th>
+                                <th>State</th>
+                                <th>ID</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-\{{this.subId}}">
+                            <tr><td colspan="7" class="loading">Click to load...</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="group-pagination" id="pagination-\{{this.subId}}"></div>
+                </div>
+                \{{/each}}
             </div>
         </div>
-        {{/each}}
+        \{{/each}}
     </script>
 
-    <!-- Handlebars  -->
     <script src="https://cdn.jsdelivr.net/npm/handlebars@4.7.8/dist/handlebars.min.js"></script>
+
     <script>
-    let groupSummary = [];
-    let allData = [];
-    let collapseState = {};
-    const ITEMS_PER_PAGE = 10;
+        // ========================================
+        // GLOBAL STATE
+        // ========================================
+        let allData = [];
+        let groupSummary = [];
+        let collapseState = {};
+        let subDataCache = {}; // Cache để tránh load lại
 
-    // Helper to group by platform>sub-category
-    function buildPlatformSubStructure(groupSummary, data) {
-        const byPlat = {};
-        data.forEach(e => {
-            const plat = e.platform || "Unknown";
-            const sub = e["sub-category"] || "Other";
-            if(!byPlat[plat]) byPlat[plat] = new Set();
-            byPlat[plat].add(sub);
+        // ========================================
+        // HANDLEBARS HELPERS
+        // ========================================
+        Handlebars.registerHelper('uppercase', function(text) {
+            return text ? text.toUpperCase() : '';
         });
-        return groupSummary.map(g => ({
-            platform: g.platform,
-            overallStatus: g.overallStatus,
-            totalItems: g.totalItems,
-            platformId: g.platform.replace(/[^a-zA-Z0-9]/g, "_"),
-            subCategories: Array.from(byPlat[g.platform]||[]).map(name => ({
-                name,
-                subId: (g.platform+"_"+name).replace(/[^a-zA-Z0-9]/g, "_")
-            }))
-        }));
-    }
 
-    // Main render
-    async function renderView() {
-        const raw = await fetch('/platformmetrics').then(r=>r.json());
-        if(!raw.success){document.getElementById('groupedView').innerHTML="Load error!";return;}
-        groupSummary = raw.groupSummary;
-        allData = raw.data;
-        const platforms = buildPlatformSubStructure(groupSummary, allData);
-        const tpl = Handlebars.compile(document.getElementById('group-template').innerHTML);
-        document.getElementById('groupedView').innerHTML = tpl({platforms});
+        // ========================================
+        // FETCH DATA FROM API
+        // ========================================
+        async function fetchData(params = {}) {
+            const queryParams = new URLSearchParams();
+            
+            Object.keys(params).forEach(key => {
+                if (params[key] !== null && params[key] !== undefined && params[key] !== '') {
+                    queryParams.append(key, params[key]);
+                }
+            });
 
-        // Optionally, auto-expand first platform for UX
-        if(platforms.length) toggleCollapse(platforms[0].platformId);
-    }
-
-    // Toggle helpers
-    window.toggleCollapse = function(id) {
-        collapseState[id] = !collapseState[id];
-        const content = document.getElementById('content-' + id);
-        const icon = document.getElementById('icon-' + id);
-        if (!content || !icon) return;
-        if (collapseState[id]) {
-            content.classList.add('expanded'); icon.textContent = '▼';
-            // If platform, do nothing else. If sub, lazy load table on first expand
-            if (id.indexOf("_") !== -1 && content.querySelector("table")==null) {
-                const [platform, ...sub] = id.split("_");
-                renderSubTable(platform, sub.join("_"), id, 1);
+            const query = queryParams.toString() ? '?' + queryParams.toString() : '';
+            
+            try {
+                console.log('🔄 Fetching:', '/platformmetrics' + query);
+                const response = await fetch('/platformmetrics' + query);
+                const data = await response.json();
+                
+                console.log('✅ Response:', data);
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to fetch data');
+                }
+                
+                return data;
+            } catch (error) {
+                console.error('❌ Fetch error:', error);
+                throw error;
             }
-        } else {
-            content.classList.remove('expanded'); icon.textContent = '▶';
         }
-    };
 
-    // Render pagination and data for a subcategory
-    function renderSubTable(platform, sub, subId, page) {
-        // Filter data by platform and sub
-        const items = allData.filter(item =>
-            (item.platform||"Unknown").replace(/[^a-zA-Z0-9]/g,"_") === platform &&
-            (item["sub-category"]||"Other").replace(/[^a-zA-Z0-9]/g,"_") === sub
-        );
-        const total = items.length;
-        const totalPages = Math.ceil(total/ITEMS_PER_PAGE);
-        const start = (page-1)*ITEMS_PER_PAGE;
-        const pageItems = items.slice(start, start+ITEMS_PER_PAGE);
+        // ========================================
+        // BUILD PLATFORM STRUCTURE
+        // ========================================
+        function buildPlatformStructure(groupSummary, allData) {
+            console.log('🔨 Building platform structure...');
+            console.log('📊 Group Summary:', groupSummary);
+            console.log('📦 All Data:', allData);
+            
+            const platformSubMap = {};
+            
+            // Tạo map platform -> sub-categories
+            allData.forEach(item => {
+                const platform = item.platform || 'Unknown';
+                const subCategory = item['sub-category'] || 'Other';
+                
+                if (!platformSubMap[platform]) {
+                    platformSubMap[platform] = new Set();
+                }
+                platformSubMap[platform].add(subCategory);
+            });
+            
+            console.log('🗂️ Platform-Sub Map:', platformSubMap);
+            
+            // Build final structure
+            const result = groupSummary.map(summary => {
+                const platform = summary.platform;
+                const platformId = platform.replace(/[^a-zA-Z0-9]/g, '_');
+                
+                const subCategories = [];
+                if (platformSubMap[platform]) {
+                    platformSubMap[platform].forEach(subName => {
+                        const subId = (platform + '_' + subName).replace(/[^a-zA-Z0-9]/g, '_');
+                        subCategories.push({
+                            name: subName,
+                            subId: subId
+                        });
+                    });
+                }
+                
+                return {
+                    platform: platform,
+                    platformId: platformId,
+                    totalItems: summary.totalItems,
+                    overallStatus: summary.overallStatus,
+                    subCategories: subCategories
+                };
+            });
+            
+            console.log('✅ Platform structure built:', result);
+            return result;
+        }
 
-        let tableHtml = "<table><thead><tr><th>Account</th><th>Date</th><th>Item</th><th>Item Type</th><th>Reason</th><th>State</th><th>ID</th></tr></thead><tbody>";
-        tableHtml += pageItems.map(item =>
-            `<tr>
-                <td>${item.account||""}</td>
-                <td>${item.date||""}</td>
-                <td>${item.item||""}</td>
-                <td>${item.item_type||""}</td>
-                <td>${item.reason||""}</td>
-                <td style="color:${item.state==="Unhealthy"?"red":"green"}">${item.state||""}</td>
-                <td>${item._id||""}</td>
-            </tr>`).join('');
-        tableHtml += "</tbody></table>";
+        // ========================================
+        // TOGGLE PLATFORM COLLAPSE
+        // ========================================
+        function togglePlatform(platformId) {
+            console.log('🔽 Toggle platform:', platformId);
+            
+            collapseState[platformId] = !collapseState[platformId];
+            const content = document.getElementById('content-' + platformId);
+            const icon = document.getElementById('icon-' + platformId);
+            
+            if (!content || !icon) {
+                console.warn('⚠️ Platform elements not found:', platformId);
+                return;
+            }
+            
+            if (collapseState[platformId]) {
+                content.classList.add('expanded');
+                icon.textContent = '▼';
+            } else {
+                content.classList.remove('expanded');
+                icon.textContent = '▶';
+            }
+        }
 
-        document.getElementById("sub-table-"+subId).innerHTML = tableHtml;
+        // ========================================
+        // TOGGLE SUB-CATEGORY & LOAD DATA
+        // ========================================
+        async function toggleSub(platform, subCategory, subId) {
+            console.log('🔽 Toggle sub:', {platform, subCategory, subId});
+            
+            collapseState[subId] = !collapseState[subId];
+            const content = document.getElementById('content-' + subId);
+            const icon = document.getElementById('icon-' + subId);
+            
+            if (!content || !icon) {
+                console.warn('⚠️ Sub elements not found:', subId);
+                return;
+            }
+            
+            if (collapseState[subId]) {
+                content.classList.add('expanded');
+                icon.textContent = '▼';
+                
+                // Load data lần đầu
+                const tbody = document.getElementById('tbody-' + subId);
+                if (tbody && tbody.innerHTML.includes('Click to load')) {
+                    await loadSubData(platform, subCategory, subId, 1);
+                }
+            } else {
+                content.classList.remove('expanded');
+                icon.textContent = '▶';
+            }
+        }
 
-        // Pagination controls
-        let p = `<div class="pagination-info">Showing ${start+1}-${Math.min(start+ITEMS_PER_PAGE,total)} of ${total} items</div>`;
-        p += `<div class="pagination-controls">`;
-        p += `<button onclick="renderSubTable('${platform}','${sub}','${subId}',1)" ${page==1?"disabled":""}>First</button>`;
-        p += `<button onclick="renderSubTable('${platform}','${sub}','${subId}',${page-1})" ${page==1?"disabled":""}>Previous</button>`;
-        p += `<span>Page ${page} of ${totalPages||1}</span>`;
-        p += `<button onclick="renderSubTable('${platform}','${sub}','${subId}',${page+1})" ${page==totalPages||!totalPages?"disabled":""}>Next</button>`;
-        p += `<button onclick="renderSubTable('${platform}','${sub}','${subId}',${totalPages})" ${page==totalPages||!totalPages?"disabled":""}>Last</button>`;
-        p += `</div>`;
-        document.getElementById("pagination-"+subId).innerHTML = totalPages>1 ? p : "";
-    }
+        // ========================================
+        // LOAD SUB-CATEGORY DATA
+        // ========================================
+        async function loadSubData(platform, subCategory, subId, page = 1) {
+            console.log('📥 Loading sub data:', {platform, subCategory, subId, page});
+            
+            const tbody = document.getElementById('tbody-' + subId);
+            const searchInput = document.getElementById('search-' + subId);
+            const filterSelect = document.getElementById('filter-' + subId);
+            
+            if (!tbody) {
+                console.warn('⚠️ tbody not found:', subId);
+                return;
+            }
+            
+            const search = searchInput ? searchInput.value.trim() : '';
+            const state = filterSelect ? filterSelect.value : 'all';
+            
+            tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading...</td></tr>';
 
-    document.addEventListener("DOMContentLoaded", renderView);
+            try {
+                const params = {
+                    platform: platform,
+                    'sub-category': subCategory,
+                    page: page,
+                    limit: 10
+                };
+
+                if (search) params.search = search;
+                if (state !== 'all') params.state = state;
+
+                const data = await fetchData(params);
+                
+                tbody.innerHTML = '';
+
+                if (!data.data || data.data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #666; padding: 20px;">No items found</td></tr>';
+                    document.getElementById('pagination-' + subId).innerHTML = '';
+                    return;
+                }
+
+                // Render rows
+                data.data.forEach(item => {
+                    const row = document.createElement('tr');
+                    const statusColor = item.state === 'Healthy' ? 'green' : 'red';
+                    row.innerHTML = `
+                        <td>${item.account || ''}</td>
+                        <td>${item.date || ''}</td>
+                        <td>${item.item || ''}</td>
+                        <td>${item.item_type || ''}</td>
+                        <td>${item.reason || ''}</td>
+                        <td style="color: ${statusColor}">${item.state || ''}</td>
+                        <td>${item._id || ''}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+
+                // Update pagination
+                if (data.pagination) {
+                    updatePagination(platform, subCategory, subId, data.pagination);
+                }
+
+            } catch (error) {
+                console.error('❌ Load sub data error:', error);
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: red; padding: 20px;">Error: ${error.message}</td></tr>`;
+            }
+        }
+
+        // ========================================
+        // UPDATE PAGINATION
+        // ========================================
+        function updatePagination(platform, subCategory, subId, paginationData) {
+            console.log('📄 Update pagination:', {subId, paginationData});
+            
+            const { currentPage, totalPages, totalItems, itemsPerPage, hasNextPage, hasPreviousPage } = paginationData;
+            const paginationContainer = document.getElementById('pagination-' + subId);
+            
+            if (!paginationContainer) {
+                console.warn('⚠️ Pagination container not found:', subId);
+                return;
+            }
+
+            if (totalPages <= 1) {
+                paginationContainer.innerHTML = '';
+                return;
+            }
+
+            const startItem = totalItems > 0 ? ((currentPage - 1) * itemsPerPage) + 1 : 0;
+            const endItem = Math.min(currentPage * itemsPerPage, totalItems);
+
+            paginationContainer.innerHTML = `
+                <div class="pagination-info">
+                    Showing ${startItem}-${endItem} of ${totalItems} items
+                </div>
+                <div class="pagination-controls">
+                    <button onclick="loadSubData('${platform}', '${subCategory}', '${subId}', 1)" ${!hasPreviousPage ? 'disabled' : ''}>First</button>
+                    <button onclick="loadSubData('${platform}', '${subCategory}', '${subId}', ${currentPage - 1})" ${!hasPreviousPage ? 'disabled' : ''}>Previous</button>
+                    <span style="margin: 0 10px;">Page ${currentPage} of ${totalPages}</span>
+                    <button onclick="loadSubData('${platform}', '${subCategory}', '${subId}', ${currentPage + 1})" ${!hasNextPage ? 'disabled' : ''}>Next</button>
+                    <button onclick="loadSubData('${platform}', '${subCategory}', '${subId}', ${totalPages})" ${!hasNextPage ? 'disabled' : ''}>Last</button>
+                </div>
+            `;
+        }
+
+        // ========================================
+        // HANDLE SEARCH/FILTER
+        // ========================================
+        function handleSearchFilter(platform, subCategory, subId) {
+            console.log('🔍 Search/Filter:', {platform, subCategory, subId});
+            loadSubData(platform, subCategory, subId, 1); // Reset về page 1
+        }
+
+        // ========================================
+        // RENDER INITIAL VIEW
+        // ========================================
+        async function renderView() {
+            console.log('🎬 Starting render...');
+            
+            try {
+                const data = await fetchData({});
+                
+                allData = data.data || [];
+                groupSummary = data.groupSummary || [];
+                
+                console.log('📦 Loaded allData:', allData.length, 'items');
+                console.log('📊 Loaded groupSummary:', groupSummary.length, 'platforms');
+                
+                if (!groupSummary.length) {
+                    document.getElementById('groupedView').innerHTML = '<div class="loading">No data available</div>';
+                    return;
+                }
+
+                const platforms = buildPlatformStructure(groupSummary, allData);
+                
+                const source = document.getElementById('group-template').innerHTML;
+                const template = Handlebars.compile(source);
+                const html = template({ platforms });
+                
+                document.getElementById('groupedView').innerHTML = html;
+                console.log('✅ Render complete!');
+                
+            } catch (error) {
+                console.error('❌ Render error:', error);
+                document.getElementById('groupedView').innerHTML = `<div class="loading" style="color: red;">Error: ${error.message}</div>`;
+            }
+        }
+
+        // ========================================
+        // INITIALIZE
+        // ========================================
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Page loaded, starting...');
+            renderView();
+        });
     </script>
 </body>
 </html>
