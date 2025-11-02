@@ -30,6 +30,80 @@
             padding: 20px;
             color: #666;
         }
+
+        /* COLLAPSE STYLING */
+        .platform-header {
+            background-color: #f5f5f5;
+            cursor: pointer;
+            padding: 15px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #ddd;
+            margin-top: 10px;
+        }
+
+        .platform-header:hover {
+            background-color: #e9ecef;
+        }
+
+        .sub-header {
+            background-color: #f8f9fa;
+            cursor: pointer;
+            padding: 12px;
+            padding-left: 30px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 3px solid #ddd;
+            margin: 5px 0;
+        }
+
+        .sub-header:hover {
+            background-color: #e9ecef;
+        }
+
+        .collapse-icon {
+            font-size: 14px;
+            margin-left: 10px;
+        }
+
+        .platform-content {
+            display: none;
+        }
+
+        .platform-content.expanded {
+            display: block;
+        }
+
+        .sub-content {
+            display: none;
+            margin-left: 20px;
+        }
+
+        .sub-content.expanded {
+            display: block;
+        }
+
+        .group-status {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+
+        .status-healthy {
+            background-color: green;
+            color: white;
+        }
+
+        .status-unhealthy {
+            background-color: red;
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -40,49 +114,81 @@
     </div>
 
     <!-- HANDLEBARS TEMPLATE -->
-    <script id="data-template" type="text/x-handlebars-template">
-        <table>
-            <thead>
-                <tr>
-                    <th>Platform</th>
-                    <th>Sub-Category</th>
-                    <th>Account</th>
-                    <th>Date</th>
-                    <th>Item</th>
-                    <th>Item Type</th>
-                    <th>State</th>
-                    <th>Reason</th>
-                </tr>
-            </thead>
-            <tbody>
-                \{{#each items}}
-                <tr>
-                    <td>\{{this.platform}}</td>
-                    <td>\{{this.sub-category}}</td>
-                    <td>\{{this.account}}</td>
-                    <td>\{{this.date}}</td>
-                    <td>\{{this.item}}</td>
-                    <td>\{{this.item_type}}</td>
-                    <td style="color: \{{#if (eq this.state 'Healthy')}}green\{{else}}red\{{/if}}">\{{this.state}}</td>
-                    <td>\{{this.reason}}</td>
-                </tr>
+    <script id="nested-template" type="text/x-handlebars-template">
+        \{{#each platforms}}
+        <div>
+            <!-- PLATFORM HEADER -->
+            <div class="platform-header" onclick="togglePlatform('\{{this.platformId}}')">
+                <div>
+                    <span>\{{this.platform}} (\{{this.totalItems}} items)</span>
+                    <span class="group-status status-\{{this.overallStatus}}">\{{uppercase this.overallStatus}}</span>
+                </div>
+                <span class="collapse-icon" id="icon-\{{this.platformId}}">▶</span>
+            </div>
+
+            <!-- PLATFORM CONTENT -->
+            <div class="platform-content" id="content-\{{this.platformId}}">
+                \{{#each this.subCategories}}
+                <div>
+                    <!-- SUB-CATEGORY HEADER -->
+                    <div class="sub-header" onclick="toggleSub('\{{../this.platformId}}', '\{{this.subId}}')">
+                        <span>\{{this.name}} (\{{this.count}} items)</span>
+                        <span class="collapse-icon" id="icon-\{{this.subId}}">▶</span>
+                    </div>
+
+                    <!-- SUB-CATEGORY CONTENT (TABLE) -->
+                    <div class="sub-content" id="content-\{{this.subId}}">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Account</th>
+                                    <th>Date</th>
+                                    <th>Item</th>
+                                    <th>Item Type</th>
+                                    <th>State</th>
+                                    <th>Reason</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                \{{#each this.items}}
+                                <tr>
+                                    <td>\{{this.account}}</td>
+                                    <td>\{{this.date}}</td>
+                                    <td>\{{this.item}}</td>
+                                    <td>\{{this.item_type}}</td>
+                                    <td style="color: \{{#if (eq this.state 'Healthy')}}green\{{else}}red\{{/if}}">\{{this.state}}</td>
+                                    <td>\{{this.reason}}</td>
+                                </tr>
+                                \{{/each}}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
                 \{{/each}}
-            </tbody>
-        </table>
+            </div>
+        </div>
+        \{{/each}}
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/handlebars@4.7.8/dist/handlebars.min.js"></script>
 
     <script>
-        // HANDLEBARS HELPER
+        // STATE
+        let collapseState = {};
+
+        // HANDLEBARS HELPERS
         Handlebars.registerHelper('eq', function(a, b) {
             return a === b;
+        });
+
+        Handlebars.registerHelper('uppercase', function(text) {
+            return text ? text.toUpperCase() : '';
         });
 
         // FETCH DATA
         async function fetchData() {
             try {
-                console.log('📥 Fetching data from /platformmetrics...');
+                console.log('📥 Fetching data...');
                 const response = await fetch('/platformmetrics');
                 const result = await response.json();
                 
@@ -99,20 +205,107 @@
             }
         }
 
+        // GROUP DATA: platform > sub-category
+        function groupData(data, groupSummary) {
+            console.log('🔨 Grouping data...');
+            
+            // Step 1: Group by platform > sub-category
+            const grouped = {};
+            data.forEach(item => {
+                const platform = item.platform || 'Unknown';
+                const sub = item['sub-category'] || 'Other';
+                
+                if (!grouped[platform]) {
+                    grouped[platform] = {};
+                }
+                if (!grouped[platform][sub]) {
+                    grouped[platform][sub] = [];
+                }
+                grouped[platform][sub].push(item);
+            });
+
+            // Step 2: Build structure for Handlebars
+            const platforms = [];
+            Object.keys(grouped).forEach(platform => {
+                const platformId = platform.replace(/[^a-zA-Z0-9]/g, '_');
+                const summary = groupSummary.find(g => g.platform === platform);
+                const totalItems = Object.values(grouped[platform]).reduce((sum, items) => sum + items.length, 0);
+                
+                const subCategories = [];
+                Object.keys(grouped[platform]).forEach(sub => {
+                    const subId = (platform + '_' + sub).replace(/[^a-zA-Z0-9]/g, '_');
+                    const items = grouped[platform][sub];
+                    
+                    subCategories.push({
+                        name: sub,
+                        subId: subId,
+                        count: items.length,
+                        items: items
+                    });
+                });
+
+                platforms.push({
+                    platform: platform,
+                    platformId: platformId,
+                    totalItems: totalItems,
+                    overallStatus: summary ? summary.overallStatus : 'unknown',
+                    subCategories: subCategories
+                });
+            });
+
+            console.log('✅ Grouped structure:', platforms);
+            return platforms;
+        }
+
         // RENDER WITH HANDLEBARS
-        function renderTable(data) {
-            console.log('📊 Rendering', data.length, 'items with Handlebars...');
+        function renderNested(platforms) {
+            console.log('📊 Rendering nested structure...');
             
             try {
-                const source = document.getElementById('data-template').innerHTML;
+                const source = document.getElementById('nested-template').innerHTML;
                 const template = Handlebars.compile(source);
-                const html = template({ items: data });
+                const html = template({ platforms });
                 
                 document.getElementById('dataView').innerHTML = html;
-                console.log('✅ Table rendered successfully!');
+                console.log('✅ Nested structure rendered!');
             } catch (error) {
                 console.error('❌ Template error:', error);
                 document.getElementById('dataView').innerHTML = `<div class="loading" style="color: red;">Template error: ${error.message}</div>`;
+            }
+        }
+
+        // TOGGLE PLATFORM
+        function togglePlatform(platformId) {
+            console.log('🔽 Toggle platform:', platformId);
+            
+            collapseState[platformId] = !collapseState[platformId];
+            const content = document.getElementById('content-' + platformId);
+            const icon = document.getElementById('icon-' + platformId);
+            
+            if (collapseState[platformId]) {
+                content.classList.add('expanded');
+                icon.textContent = '▼';
+            } else {
+                content.classList.remove('expanded');
+                icon.textContent = '▶';
+            }
+        }
+
+        // TOGGLE SUB-CATEGORY
+        function toggleSub(platformId, subId) {
+            console.log('🔽 Toggle sub:', platformId, subId);
+            
+            const key = platformId + '_' + subId;
+            collapseState[key] = !collapseState[key];
+            const content = document.getElementById('content-' + subId);
+            const icon = document.getElementById('icon-' + subId);
+            
+            if (collapseState[key]) {
+                content.classList.add('expanded');
+                icon.textContent = '▼';
+            } else {
+                content.classList.remove('expanded');
+                icon.textContent = '▶';
             }
         }
 
@@ -126,8 +319,10 @@
                     return;
                 }
                 
-                console.log('📦 Got', result.data.length, 'items from API');
-                renderTable(result.data);
+                console.log('📦 Got', result.data.length, 'items');
+                
+                const platforms = groupData(result.data, result.groupSummary);
+                renderNested(platforms);
                 
             } catch (error) {
                 console.error('❌ Init error:', error);
@@ -137,7 +332,7 @@
 
         // START
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 Page loaded, starting...');
+            console.log('🚀 Page loaded...');
             init();
         });
     </script>
