@@ -215,7 +215,7 @@
                 \{{#each this.subCategories}}
                 <div>
                     <!-- SUB-CATEGORY HEADER WITH STATUS -->
-                    <div class="sub-header" onclick="toggleSub('\{{../this.platformId}}', '\{{this.subId}}')">
+                    <div class="sub-header" onclick="toggleSub('\{{../this.platform}}', '\{{this.name}}', '\{{this.subId}}')">
                         <div>
                             <span>\{{this.name}} (\{{this.count}} items)</span>
                             <span class="group-status status-\{{this.status}}">\{{uppercase this.status}}</span>
@@ -228,10 +228,10 @@
                         <!-- SEARCH & FILTER -->
                         <div class="sub-filters">
                             <label>Search:</label>
-                            <input type="text" id="search-\{{this.subId}}" placeholder="Search account, item, etc..." onkeyup="applyFilterAndSearch('\{{this.subId}}')">
+                            <input type="text" id="search-\{{this.subId}}" placeholder="Search account, item, etc..." onkeyup="applyFilterAndSearch('\{{../this.platform}}', '\{{this.name}}', '\{{this.subId}}')">
                             
                             <label>Filter by State:</label>
-                            <select id="filter-\{{this.subId}}" onchange="applyFilterAndSearch('\{{this.subId}}')">
+                            <select id="filter-\{{this.subId}}" onchange="applyFilterAndSearch('\{{../this.platform}}', '\{{this.name}}', '\{{this.subId}}')">
                                 <option value="">All States</option>
                                 <option value="Healthy">Healthy</option>
                                 <option value="Unhealthy">Unhealthy</option>
@@ -251,16 +251,7 @@
                                 </tr>
                             </thead>
                             <tbody id="tbody-\{{this.subId}}">
-                                \{{#each this.items}}
-                                <tr class="data-row" data-search="\{{this.account}} \{{this.item}}" data-state="\{{this.state}}">
-                                    <td>\{{this.account}}</td>
-                                    <td>\{{this.date}}</td>
-                                    <td>\{{this.item}}</td>
-                                    <td>\{{this.item_type}}</td>
-                                    <td style="color: \{{#if (eq this.state 'Healthy')}}green\{{else}}red\{{/if}}">\{{this.state}}</td>
-                                    <td>\{{this.reason}}</td>
-                                </tr>
-                                \{{/each}}
+                                <!-- Data will be loaded here -->
                             </tbody>
                         </table>
 
@@ -283,8 +274,7 @@
         // STATE MANAGEMENT
         // ============================================
         let collapseState = {};
-        let paginationState = {};
-        const ITEMS_PER_PAGE = 10;
+        let subDataState = {}; // Lưu platform, sub, search, filter cho mỗi sub
 
         // ============================================
         // HANDLEBARS HELPERS
@@ -298,11 +288,11 @@
         });
 
         // ============================================
-        // FETCH DATA
+        // FETCH DATA - INITIAL LOAD
         // ============================================
-        async function fetchData() {
+        async function fetchInitialData() {
             try {
-                console.log('📥 Fetching data...');
+                console.log('📥 Fetching initial data...');
                 const response = await fetch('/platformmetrics');
                 const result = await response.json();
                 
@@ -320,10 +310,43 @@
         }
 
         // ============================================
+        // FETCH SUB-CATEGORY DATA - PAGINATION
+        // ============================================
+        async function fetchSubCategoryData(platform, subCategory, page = 1, search = '', state = '') {
+            try {
+                console.log('📥 Fetching sub data:', {platform, subCategory, page, search, state});
+                
+                const params = new URLSearchParams({
+                    platform: platform,
+                    'sub-category': subCategory,
+                    page: page,
+                    limit: 10
+                });
+
+                if (search) params.append('search', search);
+                if (state) params.append('state', state);
+
+                const response = await fetch(`/platformmetrics?${params.toString()}`);
+                const result = await response.json();
+                
+                console.log('✅ Sub data response:', result);
+                
+                if (!result.success) {
+                    throw new Error(result.error || 'Failed to fetch sub data');
+                }
+                
+                return result;
+            } catch (error) {
+                console.error('❌ Sub data fetch error:', error);
+                throw error;
+            }
+        }
+
+        // ============================================
         // GROUP DATA
         // ============================================
         function groupData(data, groupSummary) {
-            console.log('🔨 Grouping data...');
+            console.log('🔨 Grouping data for initial structure...');
             
             const grouped = {};
             data.forEach(item => {
@@ -357,8 +380,7 @@
                         name: sub,
                         subId: subId,
                         count: items.length,
-                        status: subStatus,
-                        items: items
+                        status: subStatus
                     });
                 });
 
@@ -376,7 +398,7 @@
         }
 
         // ============================================
-        // RENDER TEMPLATE
+        // RENDER TEMPLATE (STRUCTURE ONLY)
         // ============================================
         function renderNested(platforms) {
             console.log('📊 Rendering nested structure...');
@@ -414,24 +436,30 @@
         }
 
         // ============================================
-        // TOGGLE SUB-CATEGORY
+        // TOGGLE SUB-CATEGORY & LOAD DATA
         // ============================================
-        function toggleSub(platformId, subId) {
-            console.log('🔽 Toggle sub:', platformId, subId);
+        async function toggleSub(platform, subCategory, subId) {
+            console.log('🔽 Toggle sub:', {platform, subCategory, subId});
             
-            const key = platformId + '_' + subId;
-            collapseState[key] = !collapseState[key];
             const content = document.getElementById('content-' + subId);
             const icon = document.getElementById('icon-' + subId);
             
-            if (collapseState[key]) {
+            if (!content) return;
+            
+            const isExpanded = content.classList.contains('expanded');
+            
+            if (!isExpanded) {
                 content.classList.add('expanded');
                 icon.textContent = '▼';
                 
-                setTimeout(() => {
-                    console.log('⏱️ Delayed init pagination for:', subId);
-                    initPagination(subId);
-                }, 100);
+                // Load data from backend
+                const tbody = document.getElementById('tbody-' + subId);
+                if (tbody && tbody.innerHTML === '') {
+                    setTimeout(async () => {
+                        console.log('⏱️ Loading sub data on expand...');
+                        await loadSubData(platform, subCategory, subId, 1);
+                    }, 50);
+                }
             } else {
                 content.classList.remove('expanded');
                 icon.textContent = '▶';
@@ -439,77 +467,103 @@
         }
 
         // ============================================
-        // INIT PAGINATION
+        // LOAD SUB DATA (PAGE 1 OR SPECIFIC PAGE)
         // ============================================
-        function initPagination(subId) {
-            console.log('📄 Initializing pagination for:', subId);
+        async function loadSubData(platform, subCategory, subId, page = 1) {
+            console.log('📥 Loading sub data for page:', page);
             
             const tbody = document.getElementById('tbody-' + subId);
             const paginationContainer = document.getElementById('pagination-' + subId);
+            const searchInput = document.getElementById('search-' + subId);
+            const filterSelect = document.getElementById('filter-' + subId);
             
-            if (!tbody) {
-                console.error('❌ tbody NOT FOUND:', subId);
+            if (!tbody || !paginationContainer) {
+                console.error('❌ Elements not found');
                 return;
             }
-            if (!paginationContainer) {
-                console.error('❌ pagination container NOT FOUND:', subId);
-                return;
+            
+            const search = searchInput ? searchInput.value.trim() : '';
+            const state = filterSelect ? filterSelect.value : '';
+            
+            // Save state
+            subDataState[subId] = {platform, subCategory, search, state};
+            
+            tbody.innerHTML = '<tr><td colspan="6" class="loading">Loading...</td></tr>';
+            
+            try {
+                const data = await fetchSubCategoryData(platform, subCategory, page, search, state);
+                
+                tbody.innerHTML = '';
+                
+                if (!data.data || data.data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #666; padding: 20px;">No items found</td></tr>';
+                    paginationContainer.innerHTML = '';
+                    return;
+                }
+                
+                // Render rows
+                data.data.forEach(item => {
+                    const row = document.createElement('tr');
+                    const statusColor = item.state === 'Healthy' ? 'green' : 'red';
+                    row.innerHTML = `
+                        <td>${item.account || ''}</td>
+                        <td>${item.date || ''}</td>
+                        <td>${item.item || ''}</td>
+                        <td>${item.item_type || ''}</td>
+                        <td style="color: ${statusColor}">${item.state || ''}</td>
+                        <td>${item.reason || ''}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                
+                // Render pagination
+                renderPaginationButtons(platform, subCategory, subId, data.pagination);
+                
+                console.log('✅ Sub data loaded successfully');
+                
+            } catch (error) {
+                console.error('❌ Load sub data error:', error);
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: red; padding: 20px;">Error: ${error.message}</td></tr>`;
+                paginationContainer.innerHTML = '';
             }
-            
-            console.log('✅ tbody found, rows:', tbody.querySelectorAll('tr.data-row').length);
-            console.log('✅ pagination container found');
-            
-            paginationState[subId] = 1;
-            renderPagination(subId);
         }
 
         // ============================================
-        // RENDER PAGINATION (FIXED)
+        // RENDER PAGINATION BUTTONS
         // ============================================
-        function renderPagination(subId) {
-            console.log('📄 Rendering pagination for:', subId);
+        function renderPaginationButtons(platform, subCategory, subId, paginationData) {
+            console.log('📄 Rendering pagination buttons:', paginationData);
             
-            const tbody = document.getElementById('tbody-' + subId);
             const paginationContainer = document.getElementById('pagination-' + subId);
             
-            if (!tbody || !paginationContainer) {
-                console.error('❌ Elements not found for:', subId);
+            if (!paginationContainer) {
+                console.error('❌ Pagination container not found');
                 return;
             }
 
-            const allRows = Array.from(tbody.querySelectorAll('tr.data-row'));
-            console.log('  📊 Total rows:', allRows.length);
-            
-            const visibleRows = allRows.filter(row => row.style.display !== 'none');
-            console.log('  👁️ Visible rows:', visibleRows.length);
-            
-            const totalItems = visibleRows.length;
-            const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
-            
-            console.log(`  📖 Total pages: ${totalPages}`);
+            const { currentPage, totalPages, totalItems, itemsPerPage, hasNextPage, hasPreviousPage } = paginationData;
             
             if (totalPages <= 1) {
                 console.log('  ℹ️ Only 1 page, hiding pagination');
                 paginationContainer.innerHTML = '';
-                showPageRows(subId, 1, ITEMS_PER_PAGE);
                 return;
             }
 
-            const currentPage = paginationState[subId] || 1;
-            console.log(`  📍 Current page: ${currentPage}`);
-            
-            let html = `<div class="pagination-info">Showing ${(currentPage - 1) * ITEMS_PER_PAGE + 1}-${Math.min(currentPage * ITEMS_PER_PAGE, totalItems)} of ${totalItems} items</div>`;
+            const startItem = totalItems > 0 ? ((currentPage - 1) * itemsPerPage) + 1 : 0;
+            const endItem = Math.min(currentPage * itemsPerPage, totalItems);
+
+            let html = `<div class="pagination-info">Showing ${startItem}-${endItem} of ${totalItems} items</div>`;
             html += '<div class="pagination-controls">';
 
             // Previous button
-            html += `<button onclick="goToPage('${subId}', ${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>◀ Previous</button>`;
+            html += `<button onclick="loadSubData('${platform}', '${subCategory}', '${subId}', ${currentPage - 1})" ${!hasPreviousPage ? 'disabled' : ''}>◀ Previous</button>`;
 
             // Page numbers
             let startPage = Math.max(1, currentPage - 1);
             let endPage = Math.min(totalPages, currentPage + 1);
 
             if (startPage > 1) {
-                html += `<button onclick="goToPage('${subId}', 1)">1</button>`;
+                html += `<button onclick="loadSubData('${platform}', '${subCategory}', '${subId}', 1)">1</button>`;
                 if (startPage > 2) {
                     html += `<span class="ellipsis">...</span>`;
                 }
@@ -521,98 +575,30 @@
                 const color = isActive ? 'white' : 'black';
                 const borderColor = isActive ? '#870e40' : '#ddd';
                 
-                html += `<button onclick="goToPage('${subId}', ${i})" style="background-color: ${bgColor}; color: ${color}; border: 1px solid ${borderColor}; font-weight: ${isActive ? 'bold' : 'normal'};">${i}</button>`;
+                html += `<button onclick="loadSubData('${platform}', '${subCategory}', '${subId}', ${i})" style="background-color: ${bgColor}; color: ${color}; border: 1px solid ${borderColor}; font-weight: ${isActive ? 'bold' : 'normal'};">${i}</button>`;
             }
 
             if (endPage < totalPages) {
                 if (endPage < totalPages - 1) {
                     html += `<span class="ellipsis">...</span>`;
                 }
-                html += `<button onclick="goToPage('${subId}', ${totalPages})">${totalPages}</button>`;
+                html += `<button onclick="loadSubData('${platform}', '${subCategory}', '${subId}', ${totalPages})">${totalPages}</button>`;
             }
 
             // Next button
-            html += `<button onclick="goToPage('${subId}', ${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>Next ▶</button>`;
+            html += `<button onclick="loadSubData('${platform}', '${subCategory}', '${subId}', ${currentPage + 1})" ${!hasNextPage ? 'disabled' : ''}>Next ▶</button>`;
             html += '</div>';
 
-            console.log('  ✅ HTML generated, length:', html.length);
             paginationContainer.innerHTML = html;
-            console.log('  ✅ HTML inserted into DOM');
-            
-            showPageRows(subId, currentPage, ITEMS_PER_PAGE);
-        }
-
-        // ============================================
-        // SHOW PAGE ROWS
-        // ============================================
-        function showPageRows(subId, page, itemsPerPage) {
-            const tbody = document.getElementById('tbody-' + subId);
-            if (!tbody) return;
-
-            const allRows = Array.from(tbody.querySelectorAll('tr.data-row'));
-            const visibleRows = allRows.filter(row => row.style.display !== 'none');
-            
-            const start = (page - 1) * itemsPerPage;
-            const end = start + itemsPerPage;
-
-            visibleRows.forEach((row, idx) => {
-                row.style.display = (idx >= start && idx < end) ? '' : 'none';
-            });
-
-            console.log(`  📍 Showing rows ${start + 1}-${Math.min(end, visibleRows.length)} of ${visibleRows.length}`);
-        }
-
-        // ============================================
-        // GO TO PAGE
-        // ============================================
-        function goToPage(subId, page) {
-            console.log('📄 Go to page:', subId, 'page', page);
-            paginationState[subId] = page;
-            renderPagination(subId);
+            console.log('✅ Pagination buttons rendered');
         }
 
         // ============================================
         // APPLY FILTER & SEARCH
         // ============================================
-        function applyFilterAndSearch(subId) {
-            console.log('🔍 Applying filter and search for:', subId);
-            
-            const searchInput = document.getElementById('search-' + subId);
-            const filterSelect = document.getElementById('filter-' + subId);
-            const tbody = document.getElementById('tbody-' + subId);
-            
-            if (!searchInput || !filterSelect || !tbody) {
-                console.warn('❌ Elements not found');
-                return;
-            }
-            
-            const searchText = searchInput.value.toLowerCase().trim();
-            const filterState = filterSelect.value;
-            
-            console.log('  🔎 Search text:', searchText);
-            console.log('  🔎 Filter state:', filterState);
-            
-            let visibleCount = 0;
-            const rows = tbody.querySelectorAll('tr.data-row');
-            
-            rows.forEach(row => {
-                const searchData = row.getAttribute('data-search').toLowerCase();
-                const rowState = row.getAttribute('data-state');
-                
-                const searchMatch = searchText === '' || searchData.includes(searchText);
-                const stateMatch = filterState === '' || rowState === filterState;
-                
-                if (searchMatch && stateMatch) {
-                    row.style.display = '';
-                    visibleCount++;
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-            
-            console.log(`  ✅ Showing ${visibleCount} of ${rows.length} rows`);
-            
-            renderPagination(subId);
+        function applyFilterAndSearch(platform, subCategory, subId) {
+            console.log('🔍 Applying filter and search');
+            loadSubData(platform, subCategory, subId, 1); // Reset to page 1
         }
 
         // ============================================
@@ -620,7 +606,7 @@
         // ============================================
         async function init() {
             try {
-                const result = await fetchData();
+                const result = await fetchInitialData();
                 
                 if (!result.data || result.data.length === 0) {
                     document.getElementById('dataView').innerHTML = '<div class="loading">No data found</div>';
