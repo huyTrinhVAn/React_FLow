@@ -31,7 +31,6 @@
             color: #666;
         }
 
-        /* COLLAPSE STYLING */
         .platform-header {
             background-color: #f5f5f5;
             cursor: pointer;
@@ -107,7 +106,6 @@
             color: white;
         }
 
-        /* SEARCH & FILTER STYLING */
         .sub-filters {
             background-color: #f8f9fa;
             padding: 12px;
@@ -137,20 +135,18 @@
             min-width: 200px;
         }
 
-        /* PAGINATION STYLING */
         .pagination-wrapper {
             display: flex;
+            flex-direction: column;
             justify-content: center;
             margin-top: 15px;
-            gap: 5px;
-            flex-wrap: wrap;
+            gap: 10px;
             align-items: center;
         }
 
         .pagination-info {
             width: 100%;
             text-align: center;
-            margin-bottom: 10px;
             font-size: 13px;
             color: #666;
         }
@@ -160,10 +156,10 @@
             justify-content: center;
             gap: 5px;
             flex-wrap: wrap;
+            align-items: center;
         }
 
-        .pagination-controls button,
-        .page-number {
+        .pagination-controls button {
             padding: 8px 12px;
             border: 1px solid #ddd;
             background-color: #fff;
@@ -172,28 +168,25 @@
             font-size: 13px;
             min-width: 35px;
             text-align: center;
+            transition: all 0.2s;
         }
 
-        .pagination-controls button:hover:not(:disabled),
-        .page-number:hover {
+        .pagination-controls button:hover:not(:disabled) {
             background-color: #f5f5f5;
+            border-color: #999;
         }
 
         .pagination-controls button:disabled {
             background-color: #f9f9f9;
             color: #ccc;
             cursor: not-allowed;
-        }
-
-        .page-number.active {
-            background-color: #870e40;
-            color: white;
-            border-color: #870e40;
+            border-color: #ddd;
         }
 
         .ellipsis {
             padding: 8px 5px;
             cursor: default;
+            color: #999;
         }
     </style>
 </head>
@@ -435,7 +428,6 @@
                 content.classList.add('expanded');
                 icon.textContent = '▼';
                 
-                // Initialize pagination when expanding
                 setTimeout(() => {
                     console.log('⏱️ Delayed init pagination for:', subId);
                     initPagination(subId);
@@ -472,7 +464,7 @@
         }
 
         // ============================================
-        // RENDER PAGINATION
+        // RENDER PAGINATION (FIXED)
         // ============================================
         function renderPagination(subId) {
             console.log('📄 Rendering pagination for:', subId);
@@ -517,21 +509,26 @@
             let endPage = Math.min(totalPages, currentPage + 1);
 
             if (startPage > 1) {
-                html += `<span class="page-number" onclick="goToPage('${subId}', 1)">1</span>`;
+                html += `<button onclick="goToPage('${subId}', 1)">1</button>`;
                 if (startPage > 2) {
                     html += `<span class="ellipsis">...</span>`;
                 }
             }
 
             for (let i = startPage; i <= endPage; i++) {
-                html += `<span class="page-number ${i === currentPage ? 'active' : ''}" onclick="goToPage('${subId}', ${i})">${i}</span>`;
+                const isActive = i === currentPage;
+                const bgColor = isActive ? '#870e40' : '#fff';
+                const color = isActive ? 'white' : 'black';
+                const borderColor = isActive ? '#870e40' : '#ddd';
+                
+                html += `<button onclick="goToPage('${subId}', ${i})" style="background-color: ${bgColor}; color: ${color}; border: 1px solid ${borderColor}; font-weight: ${isActive ? 'bold' : 'normal'};">${i}</button>`;
             }
 
             if (endPage < totalPages) {
                 if (endPage < totalPages - 1) {
                     html += `<span class="ellipsis">...</span>`;
                 }
-                html += `<span class="page-number" onclick="goToPage('${subId}', ${totalPages})">${totalPages}</span>`;
+                html += `<button onclick="goToPage('${subId}', ${totalPages})">${totalPages}</button>`;
             }
 
             // Next button
@@ -615,7 +612,6 @@
             
             console.log(`  ✅ Showing ${visibleCount} of ${rows.length} rows`);
             
-            // Re-render pagination after filter
             renderPagination(subId);
         }
 
