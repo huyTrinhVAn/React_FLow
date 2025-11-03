@@ -81,6 +81,7 @@
         .sub-content {
             display: none;
             margin-left: 20px;
+            margin-bottom: 10px;
         }
 
         .sub-content.expanded {
@@ -104,6 +105,42 @@
         .status-unhealthy {
             background-color: red;
             color: white;
+        }
+
+        /* SEARCH & FILTER STYLING */
+        .sub-filters {
+            background-color: #f8f9fa;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .sub-filters label {
+            font-weight: bold;
+            margin: 0;
+        }
+
+        .sub-filters input,
+        .sub-filters select {
+            padding: 6px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .sub-filters input {
+            flex: 1;
+            max-width: 300px;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 20px;
+            color: #999;
+            font-style: italic;
         }
     </style>
 </head>
@@ -140,8 +177,22 @@
                         <span class="collapse-icon" id="icon-\{{this.subId}}">▶</span>
                     </div>
 
-                    <!-- SUB-CATEGORY CONTENT (TABLE) -->
+                    <!-- SUB-CATEGORY CONTENT -->
                     <div class="sub-content" id="content-\{{this.subId}}">
+                        <!-- SEARCH & FILTER -->
+                        <div class="sub-filters">
+                            <label>Search:</label>
+                            <input type="text" id="search-\{{this.subId}}" placeholder="Search account, item, etc..." onkeyup="applyFilterAndSearch('\{{this.subId}}')">
+                            
+                            <label>Filter by State:</label>
+                            <select id="filter-\{{this.subId}}" onchange="applyFilterAndSearch('\{{this.subId}}')">
+                                <option value="">All States</option>
+                                <option value="Healthy">Healthy</option>
+                                <option value="Unhealthy">Unhealthy</option>
+                            </select>
+                        </div>
+
+                        <!-- TABLE -->
                         <table>
                             <thead>
                                 <tr>
@@ -153,9 +204,9 @@
                                     <th>Reason</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="tbody-\{{this.subId}}">
                                 \{{#each this.items}}
-                                <tr>
+                                <tr class="data-row" data-search="\{{this.account}} \{{this.item}} \{{this.account}}" data-state="\{{this.state}}">
                                     <td>\{{this.account}}</td>
                                     <td>\{{this.date}}</td>
                                     <td>\{{this.item}}</td>
@@ -240,7 +291,7 @@
                     const subId = (platform + '_' + sub).replace(/[^a-zA-Z0-9]/g, '_');
                     const items = grouped[platform][sub];
                     
-                    // ✅ CALCULATE SUB STATUS: if any item is unhealthy, sub is unhealthy
+                    // Calculate sub status: if any item is unhealthy, sub is unhealthy
                     const hasUnhealthy = items.some(item => item.state === 'Unhealthy');
                     const subStatus = hasUnhealthy ? 'unhealthy' : 'healthy';
                     
@@ -250,7 +301,7 @@
                         name: sub,
                         subId: subId,
                         count: items.length,
-                        status: subStatus,  // ✅ NEW: Sub status
+                        status: subStatus,
                         items: items
                     });
                 });
@@ -317,6 +368,54 @@
             } else {
                 content.classList.remove('expanded');
                 icon.textContent = '▶';
+            }
+        }
+
+        // APPLY FILTER & SEARCH
+        function applyFilterAndSearch(subId) {
+            console.log('🔍 Applying filter and search for:', subId);
+            
+            const searchInput = document.getElementById('search-' + subId);
+            const filterSelect = document.getElementById('filter-' + subId);
+            const tbody = document.getElementById('tbody-' + subId);
+            
+            if (!searchInput || !filterSelect || !tbody) {
+                console.warn('❌ Elements not found');
+                return;
+            }
+            
+            const searchText = searchInput.value.toLowerCase().trim();
+            const filterState = filterSelect.value;
+            
+            console.log('  Search text:', searchText);
+            console.log('  Filter state:', filterState);
+            
+            let visibleCount = 0;
+            const rows = tbody.querySelectorAll('tr.data-row');
+            
+            rows.forEach(row => {
+                const searchData = row.getAttribute('data-search').toLowerCase();
+                const rowState = row.getAttribute('data-state');
+                
+                // Check search text match
+                const searchMatch = searchText === '' || searchData.includes(searchText);
+                
+                // Check state filter match
+                const stateMatch = filterState === '' || rowState === filterState;
+                
+                if (searchMatch && stateMatch) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            
+            // Show "no results" message if needed
+            if (visibleCount === 0 && rows.length > 0) {
+                console.log('  No matching results');
+            } else {
+                console.log(`  Showing ${visibleCount} of ${rows.length} rows`);
             }
         }
 
