@@ -31,7 +31,6 @@
             color: #666;
         }
 
-        /* COLLAPSE STYLING */
         .platform-header {
             background-color: #f5f5f5;
             cursor: pointer;
@@ -107,7 +106,6 @@
             color: white;
         }
 
-        /* SEARCH & FILTER STYLING */
         .sub-filters {
             background-color: #f8f9fa;
             padding: 12px;
@@ -143,7 +141,6 @@
             font-style: italic;
         }
 
-        /* PAGINATION STYLING */
         .pagination-container {
             display: flex;
             justify-content: center;
@@ -203,11 +200,9 @@
         <div class="loading">Loading...</div>
     </div>
 
-    <!-- HANDLEBARS TEMPLATE -->
     <script id="nested-template" type="text/x-handlebars-template">
         \{{#each platforms}}
         <div>
-            <!-- PLATFORM HEADER -->
             <div class="platform-header" onclick="togglePlatform('\{{this.platformId}}')">
                 <div>
                     <span>\{{this.platform}} (\{{this.totalItems}} items)</span>
@@ -216,11 +211,9 @@
                 <span class="collapse-icon" id="icon-\{{this.platformId}}">▶</span>
             </div>
 
-            <!-- PLATFORM CONTENT -->
             <div class="platform-content" id="content-\{{this.platformId}}">
                 \{{#each this.subCategories}}
                 <div>
-                    <!-- SUB-CATEGORY HEADER WITH STATUS -->
                     <div class="sub-header" onclick="toggleSub('\{{../this.platformId}}', '\{{this.subId}}')">
                         <div>
                             <span>\{{this.name}} (\{{this.totalCount}} items)</span>
@@ -229,12 +222,10 @@
                         <span class="collapse-icon" id="icon-\{{this.subId}}">▶</span>
                     </div>
 
-                    <!-- SUB-CATEGORY CONTENT -->
                     <div class="sub-content" id="content-\{{this.subId}}">
-                        <!-- SEARCH & FILTER -->
                         <div class="sub-filters">
                             <label>Search:</label>
-                            <input type="text" id="search-\{{this.subId}}" placeholder="Search account, item, etc..." onkeyup="debounceSearch('\{{this.subId}}')">
+                            <input type="text" id="search-\{{this.subId}}" placeholder="Search account, item, etc..." onkeyup="applyFilterAndSearch('\{{this.subId}}')">
                             
                             <label>Filter by State:</label>
                             <select id="filter-\{{this.subId}}" onchange="applyFilterAndSearch('\{{this.subId}}')">
@@ -244,7 +235,6 @@
                             </select>
                         </div>
 
-                        <!-- TABLE -->
                         <table>
                             <thead>
                                 <tr>
@@ -270,7 +260,6 @@
                             </tbody>
                         </table>
 
-                        <!-- PAGINATION -->
                         <div class="pagination-container" id="pagination-\{{this.subId}}">
                             <button class="pagination-btn" onclick="goToPage('\{{this.subId}}', 1)" title="First page">⏮</button>
                             <button class="pagination-btn" onclick="goToPage('\{{this.subId}}', currentPage['\{{this.subId}}'] - 1)" title="Previous page">◀ Previous</button>
@@ -290,15 +279,13 @@
     <script src="https://cdn.jsdelivr.net/npm/handlebars@4.7.8/dist/handlebars.min.js"></script>
 
     <script>
-        // STATE
         let collapseState = {};
         let currentPage = {};
         let totalPages = {};
-        let subCategoryMetadata = {};
-        let searchTimeout = {};
+        let totalItemsCount = {}; // Store total items per sub-category
+        let paginationData = {};
         const itemsPerPage = 10;
 
-        // HANDLEBARS HELPERS
         Handlebars.registerHelper('eq', function(a, b) {
             return a === b;
         });
@@ -307,7 +294,6 @@
             return text ? text.toUpperCase() : '';
         });
 
-        // FETCH DATA - INITIAL LOAD
         async function fetchData() {
             try {
                 console.log('📥 Fetching data...');
@@ -315,6 +301,7 @@
                 const result = await response.json();
                 
                 console.log('✅ API Response:', result);
+                console.log('📊 Pagination from API:', result.pagination);
                 
                 if (!result.success) {
                     throw new Error(result.error || 'Failed to fetch');
@@ -327,39 +314,9 @@
             }
         }
 
-        // FETCH DATA - SERVER-SIDE PAGINATION
-        async function fetchPageData(platform, subCategory, page = 1, search = '', filterState = '') {
-            try {
-                console.log(`📥 Fetching page data: platform=${platform}, sub=${subCategory}, page=${page}`);
-                
-                const params = new URLSearchParams({
-                    platform: platform,
-                    subCategory: subCategory,
-                    page: page,
-                    limit: itemsPerPage,
-                    search: search,
-                    filterState: filterState
-                });
-                
-                const response = await fetch(`/platformmetrics/page?${params}`);
-                const result = await response.json();
-                
-                if (!result.success) {
-                    throw new Error(result.error || 'Failed to fetch page data');
-                }
-                
-                console.log(`✅ Page data received:`, result);
-                return result;
-                
-            } catch (error) {
-                console.error('❌ Page fetch error:', error);
-                throw error;
-            }
-        }
-
-        // GROUP DATA - INITIAL STRUCTURE
-        function groupData(data, groupSummary) {
+        function groupData(data, groupSummary, apiPagination) {
             console.log('🔨 Grouping data...');
+            console.log('📋 API Pagination info:', apiPagination);
             
             const grouped = {};
             data.forEach(item => {
@@ -385,24 +342,34 @@
                 Object.keys(grouped[platform]).forEach(sub => {
                     const subId = (platform + '_' + sub).replace(/[^a-zA-Z0-9]/g, '_');
                     const items = grouped[platform][sub];
-                    const totalCount = items.length;
                     
                     const hasUnhealthy = items.some(item => item.state === 'Unhealthy');
                     const subStatus = hasUnhealthy ? 'unhealthy' : 'healthy';
                     
                     // Initialize pagination state
                     currentPage[subId] = 1;
-                    // ✅ FIX: Tính totalPages từ tổng số items
-                    totalPages[subId] = Math.ceil(totalCount / itemsPerPage);
+                    paginationData[subId] = items;
                     
-                    subCategoryMetadata[subId] = {
-                        platform: platform,
-                        subCategory: sub,
-                        totalCount: totalCount,
-                        status: subStatus
-                    };
+                    // ✅ TẬN DỤNG PAGINATION TỮ API RESPONSE
+                    let totalCount = items.length;
+                    let totalPagesCount = Math.ceil(totalCount / itemsPerPage);
                     
-                    console.log(`  Sub: ${sub} => ${subStatus} (${totalCount} items, ${totalPages[subId]} pages)`);
+                    // Nếu API trả về pagination info, sử dụng nó
+                    if (apiPagination && apiPagination[subId]) {
+                        console.log(`  ✅ Using API pagination for ${subId}:`, apiPagination[subId]);
+                        totalCount = apiPagination[subId].total || totalCount;
+                        totalPagesCount = apiPagination[subId].totalPages || totalPagesCount;
+                    } else if (apiPagination && apiPagination.total) {
+                        // Fallback: nếu API trả về pagination chung chung
+                        console.log(`  ℹ️ Using general API pagination`);
+                        totalCount = apiPagination.total || totalCount;
+                        totalPagesCount = apiPagination.totalPages || totalPagesCount;
+                    }
+                    
+                    totalPages[subId] = totalPagesCount;
+                    totalItemsCount[subId] = totalCount;
+                    
+                    console.log(`  Sub: ${sub} => ${subStatus} (${totalCount} total items, ${totalPages[subId]} pages)`);
                     
                     const firstPageItems = items.slice(0, itemsPerPage);
                     
@@ -429,7 +396,6 @@
             return platforms;
         }
 
-        // RENDER WITH HANDLEBARS
         function renderNested(platforms) {
             console.log('📊 Rendering nested structure...');
             
@@ -451,7 +417,6 @@
             }
         }
 
-        // UPDATE PAGINATION UI
         function updatePaginationUI(subId) {
             const pageButtonsContainer = document.getElementById(`page-buttons-${subId}`);
             const pageInfoSpan = document.getElementById(`page-info-${subId}`);
@@ -460,8 +425,7 @@
             
             const totalPagesCount = totalPages[subId] || 1;
             const currentPageNum = currentPage[subId] || 1;
-            const metadata = subCategoryMetadata[subId];
-            const totalItems = metadata?.totalCount || 0;
+            const totalItems = totalItemsCount[subId] || 0;
             
             // Generate page buttons
             let pageHTML = '';
@@ -480,7 +444,6 @@
             
             pageButtonsContainer.innerHTML = pageHTML;
             
-            // Update page info
             const startItem = (currentPageNum - 1) * itemsPerPage + 1;
             const endItem = Math.min(currentPageNum * itemsPerPage, totalItems);
             pageInfoSpan.textContent = `${startItem}-${endItem} of ${totalItems}`;
@@ -488,7 +451,6 @@
             updateNavigationButtons(subId);
         }
 
-        // UPDATE NAVIGATION BUTTONS
         function updateNavigationButtons(subId) {
             const container = document.getElementById(`pagination-${subId}`);
             if (!container) return;
@@ -506,11 +468,7 @@
             });
         }
 
-        // GO TO PAGE
-        async function goToPage(subId, pageNum) {
-            const metadata = subCategoryMetadata[subId];
-            if (!metadata) return;
-            
+        function goToPage(subId, pageNum) {
             const totalPagesCount = totalPages[subId];
             
             if (pageNum < 1) pageNum = 1;
@@ -520,77 +478,42 @@
             
             console.log(`📄 Go to page ${pageNum} for ${subId}`);
             
-            try {
-                // Get filter values
-                const searchInput = document.getElementById(`search-${subId}`);
-                const filterSelect = document.getElementById(`filter-${subId}`);
-                const search = searchInput?.value?.toLowerCase().trim() || '';
-                const filterState = filterSelect?.value || '';
-                
-                // Fetch page data from server
-                const result = await fetchPageData(
-                    metadata.platform,
-                    metadata.subCategory,
-                    pageNum,
-                    search,
-                    filterState
-                );
-                
-                // Update total pages from server response
-                if (result.pagination) {
-                    totalPages[subId] = result.pagination.totalPages || 1;
-                }
-                
-                // Update table
-                const tbody = document.getElementById(`tbody-${subId}`);
-                if (tbody) {
-                    tbody.innerHTML = '';
-                    if (result.data && result.data.length > 0) {
-                        result.data.forEach(item => {
-                            const row = document.createElement('tr');
-                            row.className = 'data-row';
-                            row.setAttribute('data-search', `${item.account} ${item.item}`.toLowerCase());
-                            row.setAttribute('data-state', item.state);
-                            row.innerHTML = `
-                                <td>${item.account}</td>
-                                <td>${item.date}</td>
-                                <td>${item.item}</td>
-                                <td>${item.item_type}</td>
-                                <td style="color: ${item.state === 'Healthy' ? 'green' : 'red'}">${item.state}</td>
-                                <td>${item.reason}</td>
-                            `;
-                            tbody.appendChild(row);
-                        });
-                    } else {
-                        tbody.innerHTML = '<tr><td colspan="6" class="no-results">No data found</td></tr>';
-                    }
-                }
-                
-                // Update pagination UI
-                updatePaginationUI(subId);
-                
-            } catch (error) {
-                console.error('❌ Error going to page:', error);
-                alert('Error loading page: ' + error.message);
+            const startIdx = (pageNum - 1) * itemsPerPage;
+            const endIdx = startIdx + itemsPerPage;
+            const pageItems = paginationData[subId].slice(startIdx, endIdx);
+            
+            const tbody = document.getElementById(`tbody-${subId}`);
+            if (tbody) {
+                tbody.innerHTML = '';
+                pageItems.forEach(item => {
+                    const row = document.createElement('tr');
+                    row.className = 'data-row';
+                    row.setAttribute('data-search', `${item.account} ${item.item}`.toLowerCase());
+                    row.setAttribute('data-state', item.state);
+                    row.innerHTML = `
+                        <td>${item.account}</td>
+                        <td>${item.date}</td>
+                        <td>${item.item}</td>
+                        <td>${item.item_type}</td>
+                        <td style="color: ${item.state === 'Healthy' ? 'green' : 'red'}">${item.state}</td>
+                        <td>${item.reason}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
             }
+            
+            updatePaginationUI(subId);
+            applyFilterAndSearch(subId);
         }
 
-        // DEBOUNCE SEARCH
-        function debounceSearch(subId) {
-            clearTimeout(searchTimeout[subId]);
-            searchTimeout[subId] = setTimeout(() => {
-                applyFilterAndSearch(subId);
-            }, 500);
-        }
-
-        // APPLY FILTER & SEARCH
-        async function applyFilterAndSearch(subId) {
+        function applyFilterAndSearch(subId) {
             console.log('🔍 Applying filter and search for:', subId);
             
             const searchInput = document.getElementById(`search-${subId}`);
             const filterSelect = document.getElementById(`filter-${subId}`);
+            const tbody = document.getElementById(`tbody-${subId}`);
             
-            if (!searchInput || !filterSelect) {
+            if (!searchInput || !filterSelect || !tbody) {
                 console.warn('❌ Elements not found');
                 return;
             }
@@ -598,20 +521,27 @@
             const searchText = searchInput.value.toLowerCase().trim();
             const filterState = filterSelect.value;
             
-            console.log('  Search text:', searchText);
-            console.log('  Filter state:', filterState);
+            let visibleCount = 0;
+            const rows = tbody.querySelectorAll('tr.data-row');
             
-            // Reset to page 1 when applying filters
-            currentPage[subId] = 1;
+            rows.forEach(row => {
+                const searchData = row.getAttribute('data-search').toLowerCase();
+                const rowState = row.getAttribute('data-state');
+                
+                const searchMatch = searchText === '' || searchData.includes(searchText);
+                const stateMatch = filterState === '' || rowState === filterState;
+                
+                if (searchMatch && stateMatch) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
             
-            try {
-                await goToPage(subId, 1);
-            } catch (error) {
-                console.error('❌ Filter error:', error);
-            }
+            console.log(`  Showing ${visibleCount} of ${rows.length} rows`);
         }
 
-        // TOGGLE PLATFORM
         function togglePlatform(platformId) {
             console.log('🔽 Toggle platform:', platformId);
             
@@ -628,7 +558,6 @@
             }
         }
 
-        // TOGGLE SUB-CATEGORY
         function toggleSub(platformId, subId) {
             console.log('🔽 Toggle sub:', platformId, subId);
             
@@ -646,7 +575,6 @@
             }
         }
 
-        // MAIN FUNCTION
         async function init() {
             try {
                 const result = await fetchData();
@@ -657,8 +585,10 @@
                 }
                 
                 console.log('📦 Got', result.data.length, 'items');
+                console.log('📊 Pagination data from API:', result.pagination);
                 
-                const platforms = groupData(result.data, result.groupSummary);
+                // ✅ Truyền pagination info từ API vào groupData
+                const platforms = groupData(result.data, result.groupSummary, result.pagination);
                 renderNested(platforms);
                 
             } catch (error) {
@@ -667,7 +597,6 @@
             }
         }
 
-        // START
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🚀 Page loaded...');
             init();
@@ -675,64 +604,3 @@
     </script>
 </body>
 </html>
-// ✅ COMPLETE SERVER-SIDE PAGINATION ENDPOINT
-app.get('/platformmetrics/page', async (req, res) => {
-    try {
-        const { platform, subCategory, page = 1, limit = 10, search = '', filterState = '' } = req.query;
-        
-        console.log('📥 Page request:', { platform, subCategory, page, limit, search, filterState });
-        
-        // Build filter
-        let filter = {
-            platform: platform,
-            'sub-category': subCategory
-        };
-        
-        // Add search filter
-        if (search && search.trim() !== '') {
-            filter.$or = [
-                { account: { $regex: search, $options: 'i' } },
-                { item: { $regex: search, $options: 'i' } },
-                { item_type: { $regex: search, $options: 'i' } }
-            ];
-        }
-        
-        // Add state filter
-        if (filterState && filterState.trim() !== '') {
-            filter.state = filterState;
-        }
-        
-        console.log('🔍 Filter:', filter);
-        
-        // Calculate skip for pagination
-        const skip = (parseInt(page) - 1) * parseInt(limit);
-        
-        // Query database
-        const total = await Collection.countDocuments(filter);
-        const data = await Collection.find(filter)
-            .skip(skip)
-            .limit(parseInt(limit));
-        
-        const totalPages = Math.ceil(total / limit);
-        
-        console.log(`✅ Found ${data.length} items (${total} total, page ${page}/${totalPages})`);
-        
-        res.json({
-            success: true,
-            data: data,
-            pagination: {
-                page: parseInt(page),
-                limit: parseInt(limit),
-                total: total,
-                totalPages: totalPages
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Error in pagination:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: error.message 
-        });
-    }
-});
