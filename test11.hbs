@@ -153,6 +153,7 @@
             padding: 10px;
             background-color: #f8f9fa;
             border-radius: 4px;
+            flex-wrap: wrap;
         }
 
         .pagination-btn {
@@ -189,20 +190,9 @@
             margin: 0 10px;
         }
 
-        .pagination-loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #870e40;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 10px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .page-buttons {
+            display: flex;
+            gap: 4px;
         }
     </style>
 </head>
@@ -304,7 +294,7 @@
         let collapseState = {};
         let currentPage = {};
         let totalPages = {};
-        let subCategoryMetadata = {}; // Store metadata: { platform, subCategory, totalCount, etc }
+        let subCategoryMetadata = {};
         let searchTimeout = {};
         const itemsPerPage = 10;
 
@@ -395,21 +385,24 @@
                 Object.keys(grouped[platform]).forEach(sub => {
                     const subId = (platform + '_' + sub).replace(/[^a-zA-Z0-9]/g, '_');
                     const items = grouped[platform][sub];
+                    const totalCount = items.length;
                     
                     const hasUnhealthy = items.some(item => item.state === 'Unhealthy');
                     const subStatus = hasUnhealthy ? 'unhealthy' : 'healthy';
                     
                     // Initialize pagination state
                     currentPage[subId] = 1;
-                    totalPages[subId] = 1;
+                    // ✅ FIX: Tính totalPages từ tổng số items
+                    totalPages[subId] = Math.ceil(totalCount / itemsPerPage);
+                    
                     subCategoryMetadata[subId] = {
                         platform: platform,
                         subCategory: sub,
-                        totalCount: items.length,
+                        totalCount: totalCount,
                         status: subStatus
                     };
                     
-                    console.log(`  Sub: ${sub} => ${subStatus}`);
+                    console.log(`  Sub: ${sub} => ${subStatus} (${totalCount} items, ${totalPages[subId]} pages)`);
                     
                     const firstPageItems = items.slice(0, itemsPerPage);
                     
@@ -417,7 +410,7 @@
                         name: sub,
                         subId: subId,
                         count: itemsPerPage,
-                        totalCount: items.length,
+                        totalCount: totalCount,
                         status: subStatus,
                         items: firstPageItems
                     });
@@ -544,27 +537,33 @@
                 );
                 
                 // Update total pages from server response
-                totalPages[subId] = result.pagination?.totalPages || 1;
+                if (result.pagination) {
+                    totalPages[subId] = result.pagination.totalPages || 1;
+                }
                 
                 // Update table
                 const tbody = document.getElementById(`tbody-${subId}`);
                 if (tbody) {
                     tbody.innerHTML = '';
-                    result.data.forEach(item => {
-                        const row = document.createElement('tr');
-                        row.className = 'data-row';
-                        row.setAttribute('data-search', `${item.account} ${item.item}`.toLowerCase());
-                        row.setAttribute('data-state', item.state);
-                        row.innerHTML = `
-                            <td>${item.account}</td>
-                            <td>${item.date}</td>
-                            <td>${item.item}</td>
-                            <td>${item.item_type}</td>
-                            <td style="color: ${item.state === 'Healthy' ? 'green' : 'red'}">${item.state}</td>
-                            <td>${item.reason}</td>
-                        `;
-                        tbody.appendChild(row);
-                    });
+                    if (result.data && result.data.length > 0) {
+                        result.data.forEach(item => {
+                            const row = document.createElement('tr');
+                            row.className = 'data-row';
+                            row.setAttribute('data-search', `${item.account} ${item.item}`.toLowerCase());
+                            row.setAttribute('data-state', item.state);
+                            row.innerHTML = `
+                                <td>${item.account}</td>
+                                <td>${item.date}</td>
+                                <td>${item.item}</td>
+                                <td>${item.item_type}</td>
+                                <td style="color: ${item.state === 'Healthy' ? 'green' : 'red'}">${item.state}</td>
+                                <td>${item.reason}</td>
+                            `;
+                            tbody.appendChild(row);
+                        });
+                    } else {
+                        tbody.innerHTML = '<tr><td colspan="6" class="no-results">No data found</td></tr>';
+                    }
                 }
                 
                 // Update pagination UI
@@ -606,7 +605,7 @@
             currentPage[subId] = 1;
             
             try {
-                const result = await goToPage(subId, 1);
+                await goToPage(subId, 1);
             } catch (error) {
                 console.error('❌ Filter error:', error);
             }
@@ -676,41 +675,3 @@
     </script>
 </body>
 </html>
-// Ví dụ Node.js/Express
-app.get('/platformmetrics/page', async (req, res) => {
-    const { platform, subCategory, page = 1, limit = 10, search = '', filterState = '' } = req.query;
-    
-    // Query từ database với pagination
-    const skip = (page - 1) * limit;
-    
-    // Build filter
-    const filter = {
-        platform: platform,
-        'sub-category': subCategory
-    };
-    
-    if (search) {
-        filter.$or = [
-            { account: { $regex: search, $options: 'i' } },
-            { item: { $regex: search, $options: 'i' } }
-        ];
-    }
-    
-    if (filterState) {
-        filter.state = filterState;
-    }
-    
-    const total = await Collection.countDocuments(filter);
-    const data = await Collection.find(filter).skip(skip).limit(Number(limit));
-    
-    res.json({
-        success: true,
-        data: data,
-        pagination: {
-            page: Number(page),
-            limit: Number(limit),
-            total: total,
-            totalPages: Math.ceil(total / limit)
-        }
-    });
-});
