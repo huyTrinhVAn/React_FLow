@@ -136,41 +136,44 @@
             max-width: 300px;
         }
 
+        .no-results {
+            text-align: center;
+            padding: 20px;
+            color: #999;
+            font-style: italic;
+        }
+
         /* PAGINATION STYLING */
-        .group-pagination {
+        .pagination-container {
             display: flex;
-            align-items: center;
             justify-content: center;
-            margin-top: 20px;
-            padding: 15px;
-            gap: 5px;
+            align-items: center;
+            gap: 8px;
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
         }
 
         .pagination-btn {
-            min-width: 40px;
-            height: 40px;
             padding: 8px 12px;
             border: 1px solid #ddd;
             background-color: #fff;
+            color: #333;
             cursor: pointer;
             border-radius: 4px;
             font-size: 14px;
             transition: all 0.2s;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
         }
 
         .pagination-btn:hover:not(:disabled) {
-            background-color: #f5f5f5;
+            background-color: #e9ecef;
             border-color: #999;
         }
 
         .pagination-btn:disabled {
-            background-color: #f9f9f9;
-            color: #ccc;
+            opacity: 0.5;
             cursor: not-allowed;
-            border-color: #e0e0e0;
         }
 
         .pagination-btn.active {
@@ -180,19 +183,10 @@
             font-weight: bold;
         }
 
-        .pagination-btn.active:hover {
-            background-color: #6b0b33;
-            border-color: #6b0b33;
-        }
-
-        .pagination-ellipsis {
-            padding: 8px 12px;
+        .pagination-info {
+            font-size: 13px;
             color: #666;
-            user-select: none;
-        }
-
-        .pagination-nav {
-            font-weight: 500;
+            margin: 0 10px;
         }
     </style>
 </head>
@@ -203,42 +197,48 @@
         <div class="loading">Loading...</div>
     </div>
 
-    <!-- HANDLEBARS TEMPLATE - MAIN STRUCTURE -->
-    <script id="platforms-template" type="text/x-handlebars-template">
-        {{#each platforms}}
+    <!-- HANDLEBARS TEMPLATE -->
+    <script id="nested-template" type="text/x-handlebars-template">
+        \{{#each platforms}}
         <div>
-            <div class="platform-header" data-platform-id="{{platformId}}">
+            <!-- PLATFORM HEADER -->
+            <div class="platform-header" onclick="togglePlatform('\{{this.platformId}}')">
                 <div>
-                    <span>{{platform}} ({{totalItems}} items)</span>
-                    <span class="group-status status-{{overallStatus}}">{{uppercase overallStatus}}</span>
+                    <span>\{{this.platform}} (\{{this.totalItems}} items)</span>
+                    <span class="group-status status-\{{this.overallStatus}}">\{{uppercase this.overallStatus}}</span>
                 </div>
-                <span class="collapse-icon">▶</span>
+                <span class="collapse-icon" id="icon-\{{this.platformId}}">▶</span>
             </div>
 
-            <div class="platform-content" data-platform-content="{{platformId}}">
-                {{#each subCategories}}
+            <!-- PLATFORM CONTENT -->
+            <div class="platform-content" id="content-\{{this.platformId}}">
+                \{{#each this.subCategories}}
                 <div>
-                    <div class="sub-header" data-sub-id="{{subId}}" data-platform="{{../platform}}" data-sub-name="{{name}}">
+                    <!-- SUB-CATEGORY HEADER WITH STATUS -->
+                    <div class="sub-header" onclick="toggleSub('\{{../this.platformId}}', '\{{this.subId}}')">
                         <div>
-                            <span>{{name}} ({{count}} items)</span>
-                            <span class="group-status status-{{status}}">{{uppercase status}}</span>
+                            <span>\{{this.name}} (\{{this.totalCount}} items)</span>
+                            <span class="group-status status-\{{this.status}}">\{{uppercase this.status}}</span>
                         </div>
-                        <span class="collapse-icon">▶</span>
+                        <span class="collapse-icon" id="icon-\{{this.subId}}">▶</span>
                     </div>
 
-                    <div class="sub-content" data-sub-content="{{subId}}">
+                    <!-- SUB-CATEGORY CONTENT -->
+                    <div class="sub-content" id="content-\{{this.subId}}">
+                        <!-- SEARCH & FILTER -->
                         <div class="sub-filters">
                             <label>Search:</label>
-                            <input type="text" data-search="{{subId}}" placeholder="Search account, item, etc...">
+                            <input type="text" id="search-\{{this.subId}}" placeholder="Search account, item, etc..." onkeyup="applyFilterAndSearch('\{{this.subId}}')">
                             
                             <label>Filter by State:</label>
-                            <select data-filter="{{subId}}">
+                            <select id="filter-\{{this.subId}}" onchange="applyFilterAndSearch('\{{this.subId}}')">
                                 <option value="">All States</option>
                                 <option value="Healthy">Healthy</option>
                                 <option value="Unhealthy">Unhealthy</option>
                             </select>
                         </div>
 
+                        <!-- TABLE -->
                         <table>
                             <thead>
                                 <tr>
@@ -250,78 +250,46 @@
                                     <th>Reason</th>
                                 </tr>
                             </thead>
-                            <tbody data-tbody="{{subId}}">
+                            <tbody id="tbody-\{{this.subId}}">
+                                \{{#each this.items}}
+                                <tr class="data-row" data-search="\{{this.account}} \{{this.item}} \{{this.account}}" data-state="\{{this.state}}">
+                                    <td>\{{this.account}}</td>
+                                    <td>\{{this.date}}</td>
+                                    <td>\{{this.item}}</td>
+                                    <td>\{{this.item_type}}</td>
+                                    <td style="color: \{{#if (eq this.state 'Healthy')}}green\{{else}}red\{{/if}}">\{{this.state}}</td>
+                                    <td>\{{this.reason}}</td>
+                                </tr>
+                                \{{/each}}
                             </tbody>
                         </table>
 
-                        <div class="group-pagination" data-pagination="{{subId}}" style="display: none;">
+                        <!-- PAGINATION -->
+                        <div class="pagination-container" id="pagination-\{{this.subId}}">
+                            <button class="pagination-btn" onclick="goToPage('\{{this.subId}}', 1)" title="First page">⏮</button>
+                            <button class="pagination-btn" onclick="goToPage('\{{this.subId}}', currentPage['\{{this.subId}}'] - 1)" title="Previous page">◀ Previous</button>
+                            <span id="page-buttons-\{{this.subId}}" class="page-buttons"></span>
+                            <button class="pagination-btn" onclick="goToPage('\{{this.subId}}', currentPage['\{{this.subId}}'] + 1)" title="Next page">Next ▶</button>
+                            <button class="pagination-btn" onclick="goToPage('\{{this.subId}}', totalPages['\{{this.subId}}'])" title="Last page">⏭</button>
+                            <span class="pagination-info" id="page-info-\{{this.subId}}"></span>
                         </div>
                     </div>
                 </div>
-                {{/each}}
+                \{{/each}}
             </div>
         </div>
-        {{/each}}
-    </script>
-
-    <!-- HANDLEBARS TEMPLATE - TABLE ROWS -->
-    <script id="table-rows-template" type="text/x-handlebars-template">
-        {{#if items}}
-            {{#each items}}
-            <tr>
-                <td>{{account}}</td>
-                <td>{{date}}</td>
-                <td>{{item}}</td>
-                <td>{{item_type}}</td>
-                <td style="color: {{#if (eq state 'Healthy')}}green{{else}}red{{/if}}">{{state}}</td>
-                <td>{{reason}}</td>
-            </tr>
-            {{/each}}
-        {{else}}
-            <tr><td colspan="6" class="loading">No items found</td></tr>
-        {{/if}}
-    </script>
-
-    <!-- HANDLEBARS TEMPLATE - PAGINATION -->
-    <script id="pagination-template" type="text/x-handlebars-template">
-        <button class="pagination-btn pagination-nav" data-page="prev" {{#unless hasPreviousPage}}disabled{{/unless}}>
-            &lt; Previous
-        </button>
-        
-        {{#if showFirst}}
-            <button class="pagination-btn {{#if (eq currentPage 1)}}active{{/if}}" data-page="1">1</button>
-        {{/if}}
-        
-        {{#if showStartEllipsis}}
-            <span class="pagination-ellipsis">...</span>
-        {{/if}}
-        
-        {{#each pageNumbers}}
-            <button class="pagination-btn {{#if active}}active{{/if}}" data-page="{{page}}">{{page}}</button>
-        {{/each}}
-        
-        {{#if showEndEllipsis}}
-            <span class="pagination-ellipsis">...</span>
-        {{/if}}
-        
-        {{#if showLast}}
-            <button class="pagination-btn {{#if (eq currentPage totalPages)}}active{{/if}}" data-page="{{totalPages}}">{{totalPages}}</button>
-        {{/if}}
-        
-        <button class="pagination-btn pagination-nav" data-page="next" {{#unless hasNextPage}}disabled{{/unless}}>
-            Next &gt;
-        </button>
+        \{{/each}}
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/handlebars@4.7.8/dist/handlebars.min.js"></script>
 
     <script>
-        // STATE MANAGEMENT
-        const AppState = {
-            collapseState: {},
-            templates: {},
-            groupData: {}
-        };
+        // STATE
+        let collapseState = {};
+        let currentPage = {};
+        let totalPages = {};
+        let paginationData = {}; // Store full data for each sub-category
+        const itemsPerPage = 10; // Thay đổi theo nhu cầu
 
         // HANDLEBARS HELPERS
         Handlebars.registerHelper('eq', function(a, b) {
@@ -332,52 +300,32 @@
             return text ? text.toUpperCase() : '';
         });
 
-        // COMPILE TEMPLATES
-        function compileTemplates() {
-            AppState.templates.platforms = Handlebars.compile(
-                document.getElementById('platforms-template').innerHTML
-            );
-            AppState.templates.tableRows = Handlebars.compile(
-                document.getElementById('table-rows-template').innerHTML
-            );
-            AppState.templates.pagination = Handlebars.compile(
-                document.getElementById('pagination-template').innerHTML
-            );
-        }
-
-        // API FUNCTIONS
-        async function fetchData(params = {}) {
-            const queryParams = new URLSearchParams();
-            
-            Object.keys(params).forEach(key => {
-                if (params[key] !== null && params[key] !== undefined && params[key] !== '') {
-                    queryParams.append(key, params[key]);
-                }
-            });
-
-            const endpoint = 'platformmetrics';
-            const query = queryParams.toString() ? '?' + queryParams.toString() : '';
-            
+        // FETCH DATA
+        async function fetchData() {
             try {
-                console.log('📥 Fetching:', '/' + endpoint + query);
-                const response = await fetch('/' + endpoint + query);
-                const data = await response.json();
+                console.log('📥 Fetching data...');
+                const response = await fetch('/platformmetrics');
+                const result = await response.json();
                 
-                if (!data.success) {
-                    throw new Error(data.error || 'Failed to fetch data');
+                console.log('✅ API Response:', result);
+                
+                if (!result.success) {
+                    throw new Error(result.error || 'Failed to fetch');
                 }
                 
-                return data;
+                return result;
             } catch (error) {
-                console.error("❌ Error fetching data:", error);
+                console.error('❌ Fetch error:', error);
                 throw error;
             }
         }
 
-        // DATA PROCESSING
-        function groupDataByPlatform(data, groupSummary) {
-            const grouped = {};
+        // GROUP DATA: platform > sub-category
+        function groupData(data, groupSummary) {
+            console.log('🔨 Grouping data...');
             
+            // Step 1: Group by platform > sub-category
+            const grouped = {};
             data.forEach(item => {
                 const platform = item.platform || 'Unknown';
                 const sub = item['sub-category'] || 'Other';
@@ -391,25 +339,39 @@
                 grouped[platform][sub].push(item);
             });
 
+            // Step 2: Build structure for Handlebars
             const platforms = [];
-            
             Object.keys(grouped).forEach(platform => {
                 const platformId = platform.replace(/[^a-zA-Z0-9]/g, '_');
                 const summary = groupSummary.find(g => g.platform === platform);
                 const totalItems = Object.values(grouped[platform]).reduce((sum, items) => sum + items.length, 0);
                 
                 const subCategories = [];
-                
                 Object.keys(grouped[platform]).forEach(sub => {
                     const subId = (platform + '_' + sub).replace(/[^a-zA-Z0-9]/g, '_');
                     const items = grouped[platform][sub];
+                    
+                    // Calculate sub status
                     const hasUnhealthy = items.some(item => item.state === 'Unhealthy');
+                    const subStatus = hasUnhealthy ? 'unhealthy' : 'healthy';
+                    
+                    // Initialize pagination state
+                    currentPage[subId] = 1;
+                    paginationData[subId] = items;
+                    totalPages[subId] = Math.ceil(items.length / itemsPerPage);
+                    
+                    console.log(`  Sub: ${sub} => ${subStatus} (${items.length} items, ${totalPages[subId]} pages)`);
+                    
+                    // Get first page items
+                    const firstPageItems = items.slice(0, itemsPerPage);
                     
                     subCategories.push({
                         name: sub,
                         subId: subId,
-                        count: items.length,
-                        status: hasUnhealthy ? 'unhealthy' : 'healthy'
+                        count: itemsPerPage,
+                        totalCount: items.length,
+                        status: subStatus,
+                        items: firstPageItems
                     });
                 });
 
@@ -422,260 +384,234 @@
                 });
             });
 
+            console.log('✅ Grouped structure:', platforms);
             return platforms;
         }
 
-        // PAGINATION HELPER
-        function getPaginationData(currentPage, totalPages) {
-            const delta = 1; // Number of pages to show on each side of current page
-            const pageNumbers = [];
+        // RENDER WITH HANDLEBARS
+        function renderNested(platforms) {
+            console.log('📊 Rendering nested structure...');
             
-            let showFirst = false;
-            let showLast = false;
-            let showStartEllipsis = false;
-            let showEndEllipsis = false;
+            try {
+                const source = document.getElementById('nested-template').innerHTML;
+                const template = Handlebars.compile(source);
+                const html = template({ platforms });
+                
+                document.getElementById('dataView').innerHTML = html;
+                
+                // Update pagination UI for all sub-categories
+                Object.keys(totalPages).forEach(subId => {
+                    updatePaginationUI(subId);
+                });
+                
+                console.log('✅ Nested structure rendered!');
+            } catch (error) {
+                console.error('❌ Template error:', error);
+                document.getElementById('dataView').innerHTML = `<div class="loading" style="color: red;">Template error: ${error.message}</div>`;
+            }
+        }
+
+        // UPDATE PAGINATION UI
+        function updatePaginationUI(subId) {
+            const pageButtonsContainer = document.getElementById(`page-buttons-${subId}`);
+            const pageInfoSpan = document.getElementById(`page-info-${subId}`);
             
-            // Determine which page numbers to show
-            let start = Math.max(2, currentPage - delta);
-            let end = Math.min(totalPages - 1, currentPage + delta);
+            if (!pageButtonsContainer || !pageInfoSpan) return;
             
-            // Adjust if we're near the start
-            if (currentPage <= delta + 2) {
-                start = 2;
-                end = Math.min(totalPages - 1, 2 + delta * 2);
+            const totalPagesCount = totalPages[subId] || 1;
+            const currentPageNum = currentPage[subId] || 1;
+            const totalItems = paginationData[subId]?.length || 0;
+            
+            // Generate page buttons (show max 7 pages)
+            let pageHTML = '';
+            const maxVisiblePages = 7;
+            let startPage = Math.max(1, currentPageNum - Math.floor(maxVisiblePages / 2));
+            let endPage = Math.min(totalPagesCount, startPage + maxVisiblePages - 1);
+            
+            if (endPage - startPage + 1 < maxVisiblePages) {
+                startPage = Math.max(1, endPage - maxVisiblePages + 1);
             }
             
-            // Adjust if we're near the end
-            if (currentPage >= totalPages - delta - 1) {
-                start = Math.max(2, totalPages - delta * 2 - 1);
-                end = totalPages - 1;
+            // Page numbers
+            for (let i = startPage; i <= endPage; i++) {
+                const activeClass = i === currentPageNum ? 'active' : '';
+                pageHTML += `<button class="pagination-btn ${activeClass}" onclick="goToPage('${subId}', ${i})">${i}</button>`;
             }
             
-            // Show first page if not in range
-            if (start > 2) {
-                showFirst = true;
-                showStartEllipsis = true;
-            } else if (totalPages > 1) {
-                showFirst = true;
-            }
+            pageButtonsContainer.innerHTML = pageHTML;
             
-            // Show last page if not in range
-            if (end < totalPages - 1) {
-                showLast = true;
-                showEndEllipsis = true;
-            } else if (totalPages > 1) {
-                showLast = true;
-            }
+            // Update page info
+            const startItem = (currentPageNum - 1) * itemsPerPage + 1;
+            const endItem = Math.min(currentPageNum * itemsPerPage, totalItems);
+            pageInfoSpan.textContent = `${startItem}-${endItem} of ${totalItems}`;
             
-            // Create page numbers array
-            for (let i = start; i <= end; i++) {
-                pageNumbers.push({
-                    page: i,
-                    active: i === currentPage
+            // Update prev/next buttons state
+            updateNavigationButtons(subId);
+        }
+
+        // UPDATE NAVIGATION BUTTONS
+        function updateNavigationButtons(subId) {
+            const container = document.getElementById(`pagination-${subId}`);
+            if (!container) return;
+            
+            const currentPageNum = currentPage[subId];
+            const totalPagesCount = totalPages[subId];
+            
+            const buttons = container.querySelectorAll('.pagination-btn');
+            buttons.forEach((btn, idx) => {
+                // First button (⏮)
+                if (idx === 0) {
+                    btn.disabled = currentPageNum === 1;
+                }
+                // Second button (◀ Previous)
+                else if (idx === 1) {
+                    btn.disabled = currentPageNum === 1;
+                }
+                // Second to last button (Next ▶)
+                else if (idx === buttons.length - 2) {
+                    btn.disabled = currentPageNum === totalPagesCount;
+                }
+                // Last button (⏭)
+                else if (idx === buttons.length - 1) {
+                    btn.disabled = currentPageNum === totalPagesCount;
+                }
+            });
+        }
+
+        // GO TO PAGE
+        function goToPage(subId, pageNum) {
+            const totalPagesCount = totalPages[subId];
+            
+            // Validate page number
+            if (pageNum < 1) pageNum = 1;
+            if (pageNum > totalPagesCount) pageNum = totalPagesCount;
+            
+            currentPage[subId] = pageNum;
+            
+            console.log(`📄 Go to page ${pageNum} for ${subId}`);
+            
+            // Get items for current page
+            const startIdx = (pageNum - 1) * itemsPerPage;
+            const endIdx = startIdx + itemsPerPage;
+            const pageItems = paginationData[subId].slice(startIdx, endIdx);
+            
+            // Update table
+            const tbody = document.getElementById(`tbody-${subId}`);
+            if (tbody) {
+                tbody.innerHTML = '';
+                pageItems.forEach(item => {
+                    const row = document.createElement('tr');
+                    row.className = 'data-row';
+                    row.setAttribute('data-search', `${item.account} ${item.item}`.toLowerCase());
+                    row.setAttribute('data-state', item.state);
+                    row.innerHTML = `
+                        <td>${item.account}</td>
+                        <td>${item.date}</td>
+                        <td>${item.item}</td>
+                        <td>${item.item_type}</td>
+                        <td style="color: ${item.state === 'Healthy' ? 'green' : 'red'}">${item.state}</td>
+                        <td>${item.reason}</td>
+                    `;
+                    tbody.appendChild(row);
                 });
             }
             
-            return {
-                pageNumbers,
-                showFirst: showFirst && currentPage !== 1,
-                showLast: showLast && currentPage !== totalPages,
-                showStartEllipsis,
-                showEndEllipsis
-            };
+            // Update pagination UI
+            updatePaginationUI(subId);
+            
+            // Reapply filters after page change
+            applyFilterAndSearch(subId);
         }
 
-        // RENDER FUNCTIONS
-        function renderPlatforms(platforms) {
-            const html = AppState.templates.platforms({ platforms });
-            document.getElementById('dataView').innerHTML = html;
-            attachEventListeners();
+        // TOGGLE PLATFORM
+        function togglePlatform(platformId) {
+            console.log('🔽 Toggle platform:', platformId);
+            
+            collapseState[platformId] = !collapseState[platformId];
+            const content = document.getElementById('content-' + platformId);
+            const icon = document.getElementById('icon-' + platformId);
+            
+            if (collapseState[platformId]) {
+                content.classList.add('expanded');
+                icon.textContent = '▼';
+            } else {
+                content.classList.remove('expanded');
+                icon.textContent = '▶';
+            }
         }
 
-        function renderTableRows(subId, items) {
-            const tbody = document.querySelector(`[data-tbody="${subId}"]`);
-            if (!tbody) return;
+        // TOGGLE SUB-CATEGORY
+        function toggleSub(platformId, subId) {
+            console.log('🔽 Toggle sub:', platformId, subId);
             
-            tbody.innerHTML = AppState.templates.tableRows({ items });
+            const key = platformId + '_' + subId;
+            collapseState[key] = !collapseState[key];
+            const content = document.getElementById('content-' + subId);
+            const icon = document.getElementById('icon-' + subId);
+            
+            if (collapseState[key]) {
+                content.classList.add('expanded');
+                icon.textContent = '▼';
+            } else {
+                content.classList.remove('expanded');
+                icon.textContent = '▶';
+            }
         }
 
-        function renderPagination(subId, paginationData, platform, subName) {
-            const container = document.querySelector(`[data-pagination="${subId}"]`);
-            if (!container || !paginationData) return;
+        // APPLY FILTER & SEARCH
+        function applyFilterAndSearch(subId) {
+            console.log('🔍 Applying filter and search for:', subId);
             
-            const { currentPage, totalPages, hasNextPage, hasPreviousPage } = paginationData;
+            const searchInput = document.getElementById('search-' + subId);
+            const filterSelect = document.getElementById('filter-' + subId);
+            const tbody = document.getElementById('tbody-' + subId);
             
-            if (totalPages <= 1) {
-                container.style.display = 'none';
+            if (!searchInput || !filterSelect || !tbody) {
+                console.warn('❌ Elements not found');
                 return;
             }
             
-            const paginationInfo = getPaginationData(currentPage, totalPages);
-            const templateData = {
-                currentPage,
-                totalPages,
-                hasNextPage,
-                hasPreviousPage,
-                ...paginationInfo
-            };
+            const searchText = searchInput.value.toLowerCase().trim();
+            const filterState = filterSelect.value;
             
-            container.innerHTML = AppState.templates.pagination(templateData);
-            container.style.display = 'flex';
+            console.log('  Search text:', searchText);
+            console.log('  Filter state:', filterState);
             
-            // Attach pagination click handlers
-            container.querySelectorAll('[data-page]').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    const pageValue = this.getAttribute('data-page');
-                    let targetPage;
-                    
-                    if (pageValue === 'prev') {
-                        targetPage = currentPage - 1;
-                    } else if (pageValue === 'next') {
-                        targetPage = currentPage + 1;
-                    } else {
-                        targetPage = parseInt(pageValue);
-                    }
-                    
-                    if (targetPage >= 1 && targetPage <= totalPages) {
-                        loadGroupData(platform, subName, subId, targetPage);
-                    }
-                });
-            });
-        }
-
-        // LOAD GROUP DATA
-        async function loadGroupData(platform, subName, subId, page = 1) {
-            const searchInput = document.querySelector(`[data-search="${subId}"]`);
-            const filterSelect = document.querySelector(`[data-filter="${subId}"]`);
+            let visibleCount = 0;
+            const rows = tbody.querySelectorAll('tr.data-row');
             
-            const search = searchInput ? searchInput.value.trim() : '';
-            const state = filterSelect ? filterSelect.value : '';
-            
-            const tbody = document.querySelector(`[data-tbody="${subId}"]`);
-            const pagination = document.querySelector(`[data-pagination="${subId}"]`);
-            
-            if (!tbody) return;
-
-            tbody.innerHTML = '<tr><td colspan="6" class="loading">Loading...</td></tr>';
-
-            try {
-                const params = {
-                    platform: platform,
-                    'sub-category': subName,
-                    page: page,
-                    limit: 10
-                };
-
-                if (search) params.search = search;
-                if (state) params.state = state;
-
-                const result = await fetchData(params);
+            rows.forEach(row => {
+                const searchData = row.getAttribute('data-search').toLowerCase();
+                const rowState = row.getAttribute('data-state');
                 
-                renderTableRows(subId, result.data);
-                renderPagination(subId, result.pagination, platform, subName);
-
-            } catch (error) {
-                console.error("❌ Error loading data:", error);
-                tbody.innerHTML = `<tr><td colspan="6" class="loading">Error: ${error.message}</td></tr>`;
-                if (pagination) pagination.style.display = 'none';
-            }
-        }
-
-        // EVENT LISTENERS
-        function attachEventListeners() {
-            // Platform headers
-            document.querySelectorAll('[data-platform-id]').forEach(header => {
-                header.addEventListener('click', function() {
-                    const platformId = this.getAttribute('data-platform-id');
-                    togglePlatform(platformId);
-                });
-            });
-            
-            // Sub-category headers
-            document.querySelectorAll('[data-sub-id]').forEach(header => {
-                header.addEventListener('click', function() {
-                    const subId = this.getAttribute('data-sub-id');
-                    const platform = this.getAttribute('data-platform');
-                    const subName = this.getAttribute('data-sub-name');
-                    toggleSubCategory(platform, subName, subId);
-                });
-            });
-            
-            // Search inputs
-            document.querySelectorAll('[data-search]').forEach(input => {
-                input.addEventListener('keyup', function() {
-                    const subId = this.getAttribute('data-search');
-                    const subHeader = document.querySelector(`[data-sub-id="${subId}"]`);
-                    const platform = subHeader.getAttribute('data-platform');
-                    const subName = subHeader.getAttribute('data-sub-name');
-                    loadGroupData(platform, subName, subId, 1);
-                });
-            });
-            
-            // Filter selects
-            document.querySelectorAll('[data-filter]').forEach(select => {
-                select.addEventListener('change', function() {
-                    const subId = this.getAttribute('data-filter');
-                    const subHeader = document.querySelector(`[data-sub-id="${subId}"]`);
-                    const platform = subHeader.getAttribute('data-platform');
-                    const subName = subHeader.getAttribute('data-sub-name');
-                    loadGroupData(platform, subName, subId, 1);
-                });
-            });
-        }
-
-        // TOGGLE FUNCTIONS
-        function togglePlatform(platformId) {
-            const key = `platform_${platformId}`;
-            AppState.collapseState[key] = !AppState.collapseState[key];
-            
-            const content = document.querySelector(`[data-platform-content="${platformId}"]`);
-            const icon = document.querySelector(`[data-platform-id="${platformId}"] .collapse-icon`);
-            
-            if (AppState.collapseState[key]) {
-                content.classList.add('expanded');
-                icon.textContent = '▼';
-            } else {
-                content.classList.remove('expanded');
-                icon.textContent = '▶';
-            }
-        }
-
-        function toggleSubCategory(platform, subName, subId) {
-            const key = `sub_${subId}`;
-            AppState.collapseState[key] = !AppState.collapseState[key];
-            
-            const content = document.querySelector(`[data-sub-content="${subId}"]`);
-            const icon = document.querySelector(`[data-sub-id="${subId}"] .collapse-icon`);
-            
-            if (AppState.collapseState[key]) {
-                content.classList.add('expanded');
-                icon.textContent = '▼';
+                const searchMatch = searchText === '' || searchData.includes(searchText);
+                const stateMatch = filterState === '' || rowState === filterState;
                 
-                // Load data if not loaded yet
-                const tbody = document.querySelector(`[data-tbody="${subId}"]`);
-                if (tbody && tbody.childElementCount === 0) {
-                    loadGroupData(platform, subName, subId, 1);
+                if (searchMatch && stateMatch) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
                 }
-            } else {
-                content.classList.remove('expanded');
-                icon.textContent = '▶';
-            }
+            });
+            
+            console.log(`  Showing ${visibleCount} of ${rows.length} rows`);
         }
 
-        // INITIALIZATION
-        async function initialize() {
+        // MAIN FUNCTION
+        async function init() {
             try {
-                compileTemplates();
-                
-                const result = await fetchData({ limit: 0 });
+                const result = await fetchData();
                 
                 if (!result.data || result.data.length === 0) {
                     document.getElementById('dataView').innerHTML = '<div class="loading">No data found</div>';
                     return;
                 }
                 
-                const platforms = groupDataByPlatform(result.data, result.groupSummary);
-                renderPlatforms(platforms);
+                console.log('📦 Got', result.data.length, 'items');
+                
+                const platforms = groupData(result.data, result.groupSummary);
+                renderNested(platforms);
                 
             } catch (error) {
                 console.error('❌ Init error:', error);
@@ -683,10 +619,10 @@
             }
         }
 
-        // START APPLICATION
+        // START
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 Application starting...');
-            initialize();
+            console.log('🚀 Page loaded...');
+            init();
         });
     </script>
 </body>
