@@ -676,3 +676,41 @@
     </script>
 </body>
 </html>
+// Ví dụ Node.js/Express
+app.get('/platformmetrics/page', async (req, res) => {
+    const { platform, subCategory, page = 1, limit = 10, search = '', filterState = '' } = req.query;
+    
+    // Query từ database với pagination
+    const skip = (page - 1) * limit;
+    
+    // Build filter
+    const filter = {
+        platform: platform,
+        'sub-category': subCategory
+    };
+    
+    if (search) {
+        filter.$or = [
+            { account: { $regex: search, $options: 'i' } },
+            { item: { $regex: search, $options: 'i' } }
+        ];
+    }
+    
+    if (filterState) {
+        filter.state = filterState;
+    }
+    
+    const total = await Collection.countDocuments(filter);
+    const data = await Collection.find(filter).skip(skip).limit(Number(limit));
+    
+    res.json({
+        success: true,
+        data: data,
+        pagination: {
+            page: Number(page),
+            limit: Number(limit),
+            total: total,
+            totalPages: Math.ceil(total / limit)
+        }
+    });
+});
