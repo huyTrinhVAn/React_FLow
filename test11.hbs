@@ -282,8 +282,9 @@
         let collapseState = {};
         let currentPage = {};
         let totalPages = {};
-        let totalItemsCount = {}; // Store total items per sub-category
+        let totalItemsCount = {};
         let paginationData = {};
+        let filteredData = {}; // ✅ Store filtered data
         const itemsPerPage = 10;
 
         Handlebars.registerHelper('eq', function(a, b) {
@@ -346,21 +347,17 @@
                     const hasUnhealthy = items.some(item => item.state === 'Unhealthy');
                     const subStatus = hasUnhealthy ? 'unhealthy' : 'healthy';
                     
-                    // Initialize pagination state
                     currentPage[subId] = 1;
                     paginationData[subId] = items;
                     
-                    // ✅ TẬN DỤNG PAGINATION TỮ API RESPONSE
                     let totalCount = items.length;
                     let totalPagesCount = Math.ceil(totalCount / itemsPerPage);
                     
-                    // Nếu API trả về pagination info, sử dụng nó
                     if (apiPagination && apiPagination[subId]) {
                         console.log(`  ✅ Using API pagination for ${subId}:`, apiPagination[subId]);
                         totalCount = apiPagination[subId].total || totalCount;
                         totalPagesCount = apiPagination[subId].totalPages || totalPagesCount;
                     } else if (apiPagination && apiPagination.total) {
-                        // Fallback: nếu API trả về pagination chung chung
                         console.log(`  ℹ️ Using general API pagination`);
                         totalCount = apiPagination.total || totalCount;
                         totalPagesCount = apiPagination.totalPages || totalPagesCount;
@@ -427,7 +424,6 @@
             const currentPageNum = currentPage[subId] || 1;
             const totalItems = totalItemsCount[subId] || 0;
             
-            // Generate page buttons
             let pageHTML = '';
             const maxVisiblePages = 7;
             let startPage = Math.max(1, currentPageNum - Math.floor(maxVisiblePages / 2));
@@ -468,7 +464,9 @@
             });
         }
 
+        // ✅ UPDATED: GO TO PAGE - Sử dụng filteredData thay vì paginationData
         function goToPage(subId, pageNum) {
+            const dataSource = filteredData[subId] || paginationData[subId];
             const totalPagesCount = totalPages[subId];
             
             if (pageNum < 1) pageNum = 1;
@@ -480,40 +478,43 @@
             
             const startIdx = (pageNum - 1) * itemsPerPage;
             const endIdx = startIdx + itemsPerPage;
-            const pageItems = paginationData[subId].slice(startIdx, endIdx);
+            const pageItems = dataSource.slice(startIdx, endIdx);
             
             const tbody = document.getElementById(`tbody-${subId}`);
             if (tbody) {
                 tbody.innerHTML = '';
-                pageItems.forEach(item => {
-                    const row = document.createElement('tr');
-                    row.className = 'data-row';
-                    row.setAttribute('data-search', `${item.account} ${item.item}`.toLowerCase());
-                    row.setAttribute('data-state', item.state);
-                    row.innerHTML = `
-                        <td>${item.account}</td>
-                        <td>${item.date}</td>
-                        <td>${item.item}</td>
-                        <td>${item.item_type}</td>
-                        <td style="color: ${item.state === 'Healthy' ? 'green' : 'red'}">${item.state}</td>
-                        <td>${item.reason}</td>
-                    `;
-                    tbody.appendChild(row);
-                });
+                if (pageItems.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px;">No results found</td></tr>';
+                } else {
+                    pageItems.forEach(item => {
+                        const row = document.createElement('tr');
+                        row.className = 'data-row';
+                        row.setAttribute('data-search', `${item.account} ${item.item}`.toLowerCase());
+                        row.setAttribute('data-state', item.state);
+                        row.innerHTML = `
+                            <td>${item.account}</td>
+                            <td>${item.date}</td>
+                            <td>${item.item}</td>
+                            <td>${item.item_type}</td>
+                            <td style="color: ${item.state === 'Healthy' ? 'green' : 'red'}">${item.state}</td>
+                            <td>${item.reason}</td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                }
             }
             
             updatePaginationUI(subId);
-            applyFilterAndSearch(subId);
         }
 
+        // ✅ UPDATED: APPLY FILTER & SEARCH - Lọc từ TẤT CẢ DỮ LIỆU
         function applyFilterAndSearch(subId) {
             console.log('🔍 Applying filter and search for:', subId);
             
             const searchInput = document.getElementById(`search-${subId}`);
             const filterSelect = document.getElementById(`filter-${subId}`);
-            const tbody = document.getElementById(`tbody-${subId}`);
             
-            if (!searchInput || !filterSelect || !tbody) {
+            if (!searchInput || !filterSelect) {
                 console.warn('❌ Elements not found');
                 return;
             }
@@ -521,25 +522,32 @@
             const searchText = searchInput.value.toLowerCase().trim();
             const filterState = filterSelect.value;
             
-            let visibleCount = 0;
-            const rows = tbody.querySelectorAll('tr.data-row');
+            console.log('  Search text:', searchText);
+            console.log('  Filter state:', filterState);
             
-            rows.forEach(row => {
-                const searchData = row.getAttribute('data-search').toLowerCase();
-                const rowState = row.getAttribute('data-state');
+            // ✅ LỌC TỮ TẤT CẢ DỮ LIỆU, KHÔNG CHỈ TRANG HIỆN TẠI
+            let filtered = paginationData[subId].filter(item => {
+                const searchData = `${item.account} ${item.item}`.toLowerCase();
+                const rowState = item.state;
                 
                 const searchMatch = searchText === '' || searchData.includes(searchText);
                 const stateMatch = filterState === '' || rowState === filterState;
                 
-                if (searchMatch && stateMatch) {
-                    row.style.display = '';
-                    visibleCount++;
-                } else {
-                    row.style.display = 'none';
-                }
+                return searchMatch && stateMatch;
             });
             
-            console.log(`  Showing ${visibleCount} of ${rows.length} rows`);
+            filteredData[subId] = filtered;
+            
+            // ✅ Tính lại totalPages dựa trên dữ liệu đã lọc
+            const filteredTotal = filtered.length;
+            totalPages[subId] = Math.ceil(filteredTotal / itemsPerPage);
+            totalItemsCount[subId] = filteredTotal;
+            
+            currentPage[subId] = 1;
+            
+            console.log(`  Found ${filteredTotal} items after filtering`);
+            
+            goToPage(subId, 1);
         }
 
         function togglePlatform(platformId) {
@@ -587,7 +595,6 @@
                 console.log('📦 Got', result.data.length, 'items');
                 console.log('📊 Pagination data from API:', result.pagination);
                 
-                // ✅ Truyền pagination info từ API vào groupData
                 const platforms = groupData(result.data, result.groupSummary, result.pagination);
                 renderNested(platforms);
                 
