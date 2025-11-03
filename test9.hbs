@@ -116,6 +116,7 @@
             display: flex;
             gap: 15px;
             align-items: center;
+            flex-wrap: wrap;
         }
 
         .sub-filters label {
@@ -133,16 +134,17 @@
 
         .sub-filters input {
             flex: 1;
-            max-width: 300px;
+            min-width: 200px;
         }
 
-        /* ===== PAGINATION STYLING ===== */
+        /* PAGINATION STYLING */
         .pagination-wrapper {
             display: flex;
             justify-content: center;
             margin-top: 15px;
             gap: 5px;
             flex-wrap: wrap;
+            align-items: center;
         }
 
         .pagination-info {
@@ -153,9 +155,16 @@
             color: #666;
         }
 
-        .pagination-wrapper button,
-        .pagination-wrapper .page-number {
-            padding: 8px 10px;
+        .pagination-controls {
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+
+        .pagination-controls button,
+        .page-number {
+            padding: 8px 12px;
             border: 1px solid #ddd;
             background-color: #fff;
             cursor: pointer;
@@ -165,33 +174,26 @@
             text-align: center;
         }
 
-        .pagination-wrapper button:hover:not(:disabled),
-        .pagination-wrapper .page-number:hover {
+        .pagination-controls button:hover:not(:disabled),
+        .page-number:hover {
             background-color: #f5f5f5;
         }
 
-        .pagination-wrapper button:disabled {
+        .pagination-controls button:disabled {
             background-color: #f9f9f9;
             color: #ccc;
             cursor: not-allowed;
         }
 
-        .pagination-wrapper .page-number.active {
+        .page-number.active {
             background-color: #870e40;
             color: white;
             border-color: #870e40;
         }
 
-        .pagination-wrapper .ellipsis {
+        .ellipsis {
             padding: 8px 5px;
             cursor: default;
-        }
-
-        .no-results {
-            text-align: center;
-            padding: 20px;
-            color: #999;
-            font-style: italic;
         }
     </style>
 </head>
@@ -257,7 +259,7 @@
                             </thead>
                             <tbody id="tbody-\{{this.subId}}">
                                 \{{#each this.items}}
-                                <tr class="data-row" data-search="\{{this.account}} \{{this.item}} \{{this.account}}" data-state="\{{this.state}}">
+                                <tr class="data-row" data-search="\{{this.account}} \{{this.item}}" data-state="\{{this.state}}">
                                     <td>\{{this.account}}</td>
                                     <td>\{{this.date}}</td>
                                     <td>\{{this.item}}</td>
@@ -269,7 +271,7 @@
                             </tbody>
                         </table>
 
-                        <!-- ===== PAGINATION CONTROLS ===== -->
+                        <!-- PAGINATION CONTROLS -->
                         <div class="pagination-wrapper" id="pagination-\{{this.subId}}">
                             <!-- Pagination will be rendered here -->
                         </div>
@@ -284,12 +286,16 @@
     <script src="https://cdn.jsdelivr.net/npm/handlebars@4.7.8/dist/handlebars.min.js"></script>
 
     <script>
-        // STATE
+        // ============================================
+        // STATE MANAGEMENT
+        // ============================================
         let collapseState = {};
-        // ===== NEW: PAGINATION STATE =====
-        let paginationState = {}; // Store current page for each sub-category
+        let paginationState = {};
+        const ITEMS_PER_PAGE = 10;
 
+        // ============================================
         // HANDLEBARS HELPERS
+        // ============================================
         Handlebars.registerHelper('eq', function(a, b) {
             return a === b;
         });
@@ -298,7 +304,9 @@
             return text ? text.toUpperCase() : '';
         });
 
+        // ============================================
         // FETCH DATA
+        // ============================================
         async function fetchData() {
             try {
                 console.log('📥 Fetching data...');
@@ -318,11 +326,12 @@
             }
         }
 
-        // GROUP DATA: platform > sub-category
+        // ============================================
+        // GROUP DATA
+        // ============================================
         function groupData(data, groupSummary) {
             console.log('🔨 Grouping data...');
             
-            // Step 1: Group by platform > sub-category
             const grouped = {};
             data.forEach(item => {
                 const platform = item.platform || 'Unknown';
@@ -337,7 +346,6 @@
                 grouped[platform][sub].push(item);
             });
 
-            // Step 2: Build structure for Handlebars
             const platforms = [];
             Object.keys(grouped).forEach(platform => {
                 const platformId = platform.replace(/[^a-zA-Z0-9]/g, '_');
@@ -349,11 +357,8 @@
                     const subId = (platform + '_' + sub).replace(/[^a-zA-Z0-9]/g, '_');
                     const items = grouped[platform][sub];
                     
-                    // Calculate sub status: if any item is unhealthy, sub is unhealthy
                     const hasUnhealthy = items.some(item => item.state === 'Unhealthy');
                     const subStatus = hasUnhealthy ? 'unhealthy' : 'healthy';
-                    
-                    console.log(`  Sub: ${sub} => ${subStatus} (${items.length} items)`);
                     
                     subCategories.push({
                         name: sub,
@@ -377,7 +382,9 @@
             return platforms;
         }
 
-        // RENDER WITH HANDLEBARS
+        // ============================================
+        // RENDER TEMPLATE
+        // ============================================
         function renderNested(platforms) {
             console.log('📊 Rendering nested structure...');
             
@@ -394,7 +401,9 @@
             }
         }
 
+        // ============================================
         // TOGGLE PLATFORM
+        // ============================================
         function togglePlatform(platformId) {
             console.log('🔽 Toggle platform:', platformId);
             
@@ -411,7 +420,9 @@
             }
         }
 
+        // ============================================
         // TOGGLE SUB-CATEGORY
+        // ============================================
         function toggleSub(platformId, subId) {
             console.log('🔽 Toggle sub:', platformId, subId);
             
@@ -423,52 +434,85 @@
             if (collapseState[key]) {
                 content.classList.add('expanded');
                 icon.textContent = '▼';
-                // ===== NEW: Initialize pagination when expand =====
-                initPagination(subId);
+                
+                // Initialize pagination when expanding
+                setTimeout(() => {
+                    console.log('⏱️ Delayed init pagination for:', subId);
+                    initPagination(subId);
+                }, 100);
             } else {
                 content.classList.remove('expanded');
                 icon.textContent = '▶';
             }
         }
 
-        // ===== NEW: INIT PAGINATION =====
+        // ============================================
+        // INIT PAGINATION
+        // ============================================
         function initPagination(subId) {
             console.log('📄 Initializing pagination for:', subId);
-            paginationState[subId] = 1; // Reset to page 1
+            
+            const tbody = document.getElementById('tbody-' + subId);
+            const paginationContainer = document.getElementById('pagination-' + subId);
+            
+            if (!tbody) {
+                console.error('❌ tbody NOT FOUND:', subId);
+                return;
+            }
+            if (!paginationContainer) {
+                console.error('❌ pagination container NOT FOUND:', subId);
+                return;
+            }
+            
+            console.log('✅ tbody found, rows:', tbody.querySelectorAll('tr.data-row').length);
+            console.log('✅ pagination container found');
+            
+            paginationState[subId] = 1;
             renderPagination(subId);
         }
 
-        // ===== NEW: RENDER PAGINATION =====
+        // ============================================
+        // RENDER PAGINATION
+        // ============================================
         function renderPagination(subId) {
             console.log('📄 Rendering pagination for:', subId);
             
             const tbody = document.getElementById('tbody-' + subId);
             const paginationContainer = document.getElementById('pagination-' + subId);
             
-            if (!tbody || !paginationContainer) return;
+            if (!tbody || !paginationContainer) {
+                console.error('❌ Elements not found for:', subId);
+                return;
+            }
 
-            // Get all visible rows (after search/filter)
             const allRows = Array.from(tbody.querySelectorAll('tr.data-row'));
-            const visibleRows = allRows.filter(row => row.style.display !== 'none');
+            console.log('  📊 Total rows:', allRows.length);
             
-            const ITEMS_PER_PAGE = 10;
+            const visibleRows = allRows.filter(row => row.style.display !== 'none');
+            console.log('  👁️ Visible rows:', visibleRows.length);
+            
             const totalItems = visibleRows.length;
             const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
             
+            console.log(`  📖 Total pages: ${totalPages}`);
+            
             if (totalPages <= 1) {
-                paginationContainer.innerHTML = ''; // Hide if only 1 page
+                console.log('  ℹ️ Only 1 page, hiding pagination');
+                paginationContainer.innerHTML = '';
                 showPageRows(subId, 1, ITEMS_PER_PAGE);
                 return;
             }
 
             const currentPage = paginationState[subId] || 1;
+            console.log(`  📍 Current page: ${currentPage}`);
+            
             let html = `<div class="pagination-info">Showing ${(currentPage - 1) * ITEMS_PER_PAGE + 1}-${Math.min(currentPage * ITEMS_PER_PAGE, totalItems)} of ${totalItems} items</div>`;
-            html += '<div style="display: flex; justify-content: center; gap: 5px; flex-wrap: wrap;">';
+            html += '<div class="pagination-controls">';
 
             // Previous button
             html += `<button onclick="goToPage('${subId}', ${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>◀ Previous</button>`;
 
-            // Page numbers with ellipsis
+            // Page numbers
             let startPage = Math.max(1, currentPage - 1);
             let endPage = Math.min(totalPages, currentPage + 1);
 
@@ -494,13 +538,16 @@
             html += `<button onclick="goToPage('${subId}', ${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>Next ▶</button>`;
             html += '</div>';
 
+            console.log('  ✅ HTML generated, length:', html.length);
             paginationContainer.innerHTML = html;
+            console.log('  ✅ HTML inserted into DOM');
             
-            // Show only current page rows
             showPageRows(subId, currentPage, ITEMS_PER_PAGE);
         }
 
-        // ===== NEW: SHOW SPECIFIC PAGE ROWS =====
+        // ============================================
+        // SHOW PAGE ROWS
+        // ============================================
         function showPageRows(subId, page, itemsPerPage) {
             const tbody = document.getElementById('tbody-' + subId);
             if (!tbody) return;
@@ -515,18 +562,21 @@
                 row.style.display = (idx >= start && idx < end) ? '' : 'none';
             });
 
-            console.log(`  Showing rows ${start + 1}-${Math.min(end, visibleRows.length)} of ${visibleRows.length}`);
+            console.log(`  📍 Showing rows ${start + 1}-${Math.min(end, visibleRows.length)} of ${visibleRows.length}`);
         }
 
-        // ===== NEW: GO TO PAGE =====
+        // ============================================
+        // GO TO PAGE
+        // ============================================
         function goToPage(subId, page) {
             console.log('📄 Go to page:', subId, 'page', page);
             paginationState[subId] = page;
             renderPagination(subId);
-            window.scrollTo({top: document.getElementById('pagination-' + subId).offsetTop, behavior: 'smooth'});
         }
 
+        // ============================================
         // APPLY FILTER & SEARCH
+        // ============================================
         function applyFilterAndSearch(subId) {
             console.log('🔍 Applying filter and search for:', subId);
             
@@ -542,8 +592,8 @@
             const searchText = searchInput.value.toLowerCase().trim();
             const filterState = filterSelect.value;
             
-            console.log('  Search text:', searchText);
-            console.log('  Filter state:', filterState);
+            console.log('  🔎 Search text:', searchText);
+            console.log('  🔎 Filter state:', filterState);
             
             let visibleCount = 0;
             const rows = tbody.querySelectorAll('tr.data-row');
@@ -552,10 +602,7 @@
                 const searchData = row.getAttribute('data-search').toLowerCase();
                 const rowState = row.getAttribute('data-state');
                 
-                // Check search text match
                 const searchMatch = searchText === '' || searchData.includes(searchText);
-                
-                // Check state filter match
                 const stateMatch = filterState === '' || rowState === filterState;
                 
                 if (searchMatch && stateMatch) {
@@ -566,13 +613,15 @@
                 }
             });
             
-            // ===== NEW: Re-render pagination after filter =====
-            renderPagination(subId);
+            console.log(`  ✅ Showing ${visibleCount} of ${rows.length} rows`);
             
-            console.log(`  Showing ${visibleCount} of ${rows.length} rows`);
+            // Re-render pagination after filter
+            renderPagination(subId);
         }
 
-        // MAIN FUNCTION
+        // ============================================
+        // INIT
+        // ============================================
         async function init() {
             try {
                 const result = await fetchData();
