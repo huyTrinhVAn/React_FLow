@@ -675,3 +675,64 @@
     </script>
 </body>
 </html>
+// ✅ COMPLETE SERVER-SIDE PAGINATION ENDPOINT
+app.get('/platformmetrics/page', async (req, res) => {
+    try {
+        const { platform, subCategory, page = 1, limit = 10, search = '', filterState = '' } = req.query;
+        
+        console.log('📥 Page request:', { platform, subCategory, page, limit, search, filterState });
+        
+        // Build filter
+        let filter = {
+            platform: platform,
+            'sub-category': subCategory
+        };
+        
+        // Add search filter
+        if (search && search.trim() !== '') {
+            filter.$or = [
+                { account: { $regex: search, $options: 'i' } },
+                { item: { $regex: search, $options: 'i' } },
+                { item_type: { $regex: search, $options: 'i' } }
+            ];
+        }
+        
+        // Add state filter
+        if (filterState && filterState.trim() !== '') {
+            filter.state = filterState;
+        }
+        
+        console.log('🔍 Filter:', filter);
+        
+        // Calculate skip for pagination
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+        
+        // Query database
+        const total = await Collection.countDocuments(filter);
+        const data = await Collection.find(filter)
+            .skip(skip)
+            .limit(parseInt(limit));
+        
+        const totalPages = Math.ceil(total / limit);
+        
+        console.log(`✅ Found ${data.length} items (${total} total, page ${page}/${totalPages})`);
+        
+        res.json({
+            success: true,
+            data: data,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total: total,
+                totalPages: totalPages
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Error in pagination:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
