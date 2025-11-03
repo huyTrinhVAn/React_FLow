@@ -31,7 +31,6 @@
             color: #666;
         }
 
-        /* COLLAPSE STYLING */
         .platform-header {
             background-color: #f5f5f5;
             cursor: pointer;
@@ -107,7 +106,6 @@
             color: white;
         }
 
-        /* SEARCH & FILTER STYLING */
         .sub-filters {
             background-color: #f8f9fa;
             padding: 12px;
@@ -136,7 +134,6 @@
             max-width: 300px;
         }
 
-        /* PAGINATION STYLING */
         .group-pagination {
             text-align: center;
             margin-top: 15px;
@@ -176,41 +173,43 @@
         <div class="loading">Loading...</div>
     </div>
 
-    <!-- HANDLEBARS TEMPLATE -->
-    <script id="nested-template" type="text/x-handlebars-template">
-        \{{#each platforms}}
+    <!-- ========================================
+         HANDLEBARS TEMPLATE - MAIN STRUCTURE
+         ======================================== -->
+    <script id="platforms-template" type="text/x-handlebars-template">
+        \{{#each this}}
         <div>
             <!-- PLATFORM HEADER -->
-            <div class="platform-header" onclick="togglePlatform('\{{this.platformId}}')">
+            <div class="platform-header" data-platform="\{{platform}}" onclick="togglePlatform(this)">
                 <div>
-                    <span>\{{this.platform}} (\{{this.totalItems}} items)</span>
-                    <span class="group-status status-\{{this.overallStatus}}">\{{uppercase this.overallStatus}}</span>
+                    <span>\{{platform}} (\{{totalItems}} items)</span>
+                    <span class="group-status status-\{{overallStatus}}">\{{capitalize overallStatus}}</span>
                 </div>
-                <span class="collapse-icon" id="icon-\{{this.platformId}}">▶</span>
+                <span class="collapse-icon">▶</span>
             </div>
 
             <!-- PLATFORM CONTENT -->
-            <div class="platform-content" id="content-\{{this.platformId}}">
-                \{{#each this.subCategories}}
+            <div class="platform-content">
+                \{{#each subCategories}}
                 <div>
-                    <!-- SUB-CATEGORY HEADER WITH STATUS -->
-                    <div class="sub-header" onclick="toggleSub('\{{../this.platform}}', '\{{this.name}}', '\{{this.subId}}')">
+                    <!-- SUB-CATEGORY HEADER -->
+                    <div class="sub-header" data-platform="\{{../platform}}" data-subcategory="\{{name}}" data-subid="\{{subId}}" onclick="toggleSub(this)">
                         <div>
-                            <span>\{{this.name}} (\{{this.count}} items)</span>
-                            <span class="group-status status-\{{this.status}}">\{{uppercase this.status}}</span>
+                            <span>\{{name}} (\{{count}} items)</span>
+                            <span class="group-status status-\{{status}}">\{{capitalize status}}</span>
                         </div>
-                        <span class="collapse-icon" id="icon-\{{this.subId}}">▶</span>
+                        <span class="collapse-icon">▶</span>
                     </div>
 
                     <!-- SUB-CATEGORY CONTENT -->
-                    <div class="sub-content" id="content-\{{this.subId}}">
+                    <div class="sub-content">
                         <!-- SEARCH & FILTER -->
                         <div class="sub-filters">
                             <label>Search:</label>
-                            <input type="text" id="search-\{{this.subId}}" placeholder="Search account, item, etc..." onkeyup="searchGroup('\{{../this.platform}}', '\{{this.name}}', '\{{this.subId}}')">
+                            <input type="text" class="search-input" data-subid="\{{subId}}" placeholder="Search account, item..." onkeyup="searchGroup(this)">
                             
                             <label>Filter by State:</label>
-                            <select id="filter-\{{this.subId}}" onchange="filterGroup('\{{../this.platform}}', '\{{this.name}}', '\{{this.subId}}')">
+                            <select class="filter-select" data-subid="\{{subId}}" onchange="filterGroup(this)">
                                 <option value="">All States</option>
                                 <option value="Healthy">Healthy</option>
                                 <option value="Unhealthy">Unhealthy</option>
@@ -229,14 +228,14 @@
                                     <th>Reason</th>
                                 </tr>
                             </thead>
-                            <tbody id="tbody-\{{this.subId}}">
-                                <!-- Items will be loaded when expanded -->
+                            <tbody class="data-tbody" data-subid="\{{subId}}">
+                                <!-- Rows loaded here -->
                             </tbody>
                         </table>
 
                         <!-- PAGINATION -->
-                        <div class="group-pagination" id="pagination-\{{this.subId}}" style="display: none;">
-                            <!-- Pagination controls will be populated here -->
+                        <div class="group-pagination" data-subid="\{{subId}}" style="display: none;">
+                            <!-- Pagination controls rendered here -->
                         </div>
                     </div>
                 </div>
@@ -246,313 +245,294 @@
         \{{/each}}
     </script>
 
+    <!-- ========================================
+         HANDLEBARS TEMPLATE - TABLE ROWS
+         ======================================== -->
+    <script id="rows-template" type="text/x-handlebars-template">
+        \{{#each this}}
+        <tr>
+            <td>\{{account}}</td>
+            <td>\{{date}}</td>
+            <td>\{{item}}</td>
+            <td>\{{item_type}}</td>
+            <td style="color: \{{#if (eq state 'Healthy')}}green\{{else}}red\{{/if}}">\{{state}}</td>
+            <td>\{{reason}}</td>
+        </tr>
+        \{{/each}}
+    </script>
+
+    <!-- ========================================
+         HANDLEBARS TEMPLATE - PAGINATION
+         ======================================== -->
+    <script id="pagination-template" type="text/x-handlebars-template">
+        <div class="pagination-info">
+            Showing \{{startItem}}-\{{endItem}} of \{{totalItems}} items
+        </div>
+        <div class="pagination-controls">
+            <button onclick="goToPage(this, 1)" \{{#unless hasPreviousPage}}disabled\{{/unless}}>First</button>
+            <button onclick="goToPage(this, \{{previousPage}})" \{{#unless hasPreviousPage}}disabled\{{/unless}}>Previous</button>
+            <span style="margin: 0 10px;">Page \{{currentPage}} of \{{totalPages}}</span>
+            <button onclick="goToPage(this, \{{nextPage}})" \{{#unless hasNextPage}}disabled\{{/unless}}>Next</button>
+            <button onclick="goToPage(this, \{{totalPages}})" \{{#unless hasNextPage}}disabled\{{/unless}}>Last</button>
+        </div>
+    </script>
+
     <script src="https://cdn.jsdelivr.net/npm/handlebars@4.7.8/dist/handlebars.min.js"></script>
 
     <script>
-        // STATE
-        let collapseState = {};
-
+        // ============================================
         // HANDLEBARS HELPERS
-        Handlebars.registerHelper('eq', function(a, b) {
-            return a === b;
+        // ============================================
+        Handlebars.registerHelper('capitalize', (text) => {
+            return text ? text.charAt(0).toUpperCase() + text.slice(1).toLowerCase() : '';
         });
 
-        Handlebars.registerHelper('uppercase', function(text) {
-            return text ? text.toUpperCase() : '';
-        });
+        Handlebars.registerHelper('eq', (a, b) => a === b);
 
-        // FETCH DATA WITH PARAMS
-        async function fetch_data(params = {}) {
+        // ============================================
+        // API FUNCTIONS
+        // ============================================
+        async function fetchData(params = {}) {
             const queryParams = new URLSearchParams();
             
-            Object.keys(params).forEach(key => {
-                if (params[key] !== null && params[key] !== undefined && params[key] !== '') {
-                    queryParams.append(key, params[key]);
-                }
+            Object.entries(params).forEach(([key, value]) => {
+                if (value) queryParams.append(key, value);
             });
 
-            const endpoint = 'platformmetrics';
             const query = queryParams.toString() ? '?' + queryParams.toString() : '';
             
             try {
-                console.log('📥 Fetching:', '/' + endpoint + query);
-                const response = await fetch('/' + endpoint + query);
+                console.log('📥 Fetching:', `/platformmetrics${query}`);
+                const response = await fetch(`/platformmetrics${query}`);
                 const data = await response.json();
                 
-                console.log("✅ Fetched data:", data);
-                
-                if (!data.success) {
-                    throw new Error(data.error || 'Failed to fetch data');
-                }
+                console.log('✅ Response:', data);
+                if (!data.success) throw new Error(data.error || 'Failed to fetch');
                 
                 return data;
             } catch (error) {
-                console.error("❌ Error fetching data:", error);
+                console.error('❌ Fetch error:', error);
                 throw error;
             }
         }
 
-        // GROUP DATA: platform > sub-category
-        function groupData(data, groupSummary) {
-            console.log('🔨 Grouping data...');
+        // ============================================
+        // DATA PROCESSING FUNCTIONS
+        // ============================================
+        function buildPlatformStructure(data, groupSummary) {
+            console.log('🔨 Building platform structure...');
             
             const grouped = {};
             data.forEach(item => {
                 const platform = item.platform || 'Unknown';
                 const sub = item['sub-category'] || 'Other';
                 
-                if (!grouped[platform]) {
-                    grouped[platform] = {};
-                }
-                if (!grouped[platform][sub]) {
-                    grouped[platform][sub] = [];
-                }
+                if (!grouped[platform]) grouped[platform] = {};
+                if (!grouped[platform][sub]) grouped[platform][sub] = [];
                 grouped[platform][sub].push(item);
             });
 
-            const platforms = [];
-            Object.keys(grouped).forEach(platform => {
-                const platformId = platform.replace(/[^a-zA-Z0-9]/g, '_');
+            const platforms = Object.keys(grouped).map(platform => {
                 const summary = groupSummary.find(g => g.platform === platform);
                 const totalItems = Object.values(grouped[platform]).reduce((sum, items) => sum + items.length, 0);
                 
-                const subCategories = [];
-                Object.keys(grouped[platform]).forEach(sub => {
-                    const subId = (platform + '_' + sub).replace(/[^a-zA-Z0-9]/g, '_');
+                const subCategories = Object.keys(grouped[platform]).map(sub => {
                     const items = grouped[platform][sub];
-                    
                     const hasUnhealthy = items.some(item => item.state === 'Unhealthy');
-                    const subStatus = hasUnhealthy ? 'unhealthy' : 'healthy';
+                    const subId = `${platform}_${sub}`.replace(/[^a-zA-Z0-9]/g, '_');
                     
-                    console.log(`  Sub: ${sub} => ${subStatus} (${items.length} items)`);
-                    
-                    subCategories.push({
+                    return {
                         name: sub,
                         subId: subId,
                         count: items.length,
-                        status: subStatus
-                    });
+                        status: hasUnhealthy ? 'unhealthy' : 'healthy'
+                    };
                 });
 
-                platforms.push({
+                return {
                     platform: platform,
-                    platformId: platformId,
+                    platformId: platform.replace(/[^a-zA-Z0-9]/g, '_'),
                     totalItems: totalItems,
-                    overallStatus: summary ? summary.overallStatus : 'unknown',
+                    overallStatus: summary?.overallStatus || 'unknown',
                     subCategories: subCategories
-                });
+                };
             });
 
-            console.log('✅ Grouped structure:', platforms);
+            console.log('✅ Built:', platforms);
             return platforms;
         }
 
-        // RENDER WITH HANDLEBARS
-        function renderNested(platforms) {
-            console.log('📊 Rendering nested structure...');
+        // ============================================
+        // RENDER FUNCTIONS (USING HANDLEBARS)
+        // ============================================
+        function renderPlatforms(platforms) {
+            console.log('📊 Rendering platforms...');
             
             try {
-                const source = document.getElementById('nested-template').innerHTML;
-                const template = Handlebars.compile(source);
-                const html = template({ platforms });
-                
-                document.getElementById('dataView').innerHTML = html;
-                console.log('✅ Nested structure rendered!');
+                const template = Handlebars.compile(
+                    document.getElementById('platforms-template').innerHTML
+                );
+                document.getElementById('dataView').innerHTML = template(platforms);
+                console.log('✅ Rendered!');
             } catch (error) {
-                console.error('❌ Template error:', error);
-                document.getElementById('dataView').innerHTML = `<div class="loading" style="color: red;">Template error: ${error.message}</div>`;
+                console.error('❌ Render error:', error);
+                document.getElementById('dataView').innerHTML = 
+                    `<div class="loading" style="color: red;">Error: ${error.message}</div>`;
             }
         }
 
-        // TOGGLE PLATFORM
-        function togglePlatform(platformId) {
-            console.log('🔽 Toggle platform:', platformId);
-            
-            collapseState[platformId] = !collapseState[platformId];
-            const content = document.getElementById('content-' + platformId);
-            const icon = document.getElementById('icon-' + platformId);
-            
-            if (collapseState[platformId]) {
-                content.classList.add('expanded');
-                icon.textContent = '▼';
-            } else {
-                content.classList.remove('expanded');
-                icon.textContent = '▶';
-            }
+        function renderTableRows(tbody, data) {
+            const template = Handlebars.compile(
+                document.getElementById('rows-template').innerHTML
+            );
+            tbody.innerHTML = template(data);
         }
 
-        // TOGGLE SUB-CATEGORY & LOAD DATA
-        async function toggleSub(platform, sub, subId) {
-            console.log('🔽 Toggle sub:', platform, sub, subId);
-            
-            const key = platform + '_' + sub;
-            collapseState[key] = !collapseState[key];
-            const content = document.getElementById('content-' + subId);
-            const icon = document.getElementById('icon-' + subId);
-            
-            if (collapseState[key]) {
-                content.classList.add('expanded');
-                icon.textContent = '▼';
-                
-                // Load data when expanding
-                const tbody = document.getElementById('tbody-' + subId);
-                if (tbody && tbody.childElementCount === 0) {
-                    loadGroupData(platform, sub, subId, 1);
-                }
-            } else {
-                content.classList.remove('expanded');
-                icon.textContent = '▶';
-            }
-        }
-
-        // LOAD GROUP DATA WITH PAGINATION
-        async function loadGroupData(platform, sub, subId, page = 1, search = '', state = '') {
-            console.log('📥 Loading data:', {platform, sub, page, search, state});
-            
-            const tableBody = document.getElementById(`tbody-${subId}`);
-            const pagination = document.getElementById(`pagination-${subId}`);
-            
-            if (!tableBody) {
-                console.error('❌ tbody not found');
-                return;
-            }
-
-            tableBody.innerHTML = '<tr><td colspan="6" class="loading">Loading...</td></tr>';
-
-            try {
-                const params = {
-                    platform: platform,
-                    'sub-category': sub,
-                    page: page,
-                    limit: 10
-                };
-
-                if (search) params.search = search;
-                if (state) params.state = state;
-
-                const data = await fetch_data(params);
-                
-                tableBody.innerHTML = '';
-
-                if (!data.data || data.data.length === 0) {
-                    tableBody.innerHTML = '<tr><td colspan="6" class="loading">No items found</td></tr>';
-                    if (pagination) pagination.style.display = 'none';
-                    return;
-                }
-
-                // Render rows
-                data.data.forEach(item => {
-                    const row = document.createElement('tr');
-                    const statusColor = item.state === 'Healthy' ? 'green' : 'red';
-                    row.innerHTML = `
-                        <td>${item.account || ''}</td>
-                        <td>${item.date || ''}</td>
-                        <td>${item.item || ''}</td>
-                        <td>${item.item_type || ''}</td>
-                        <td style="color: ${statusColor}">${item.state || ''}</td>
-                        <td>${item.reason || ''}</td>
-                    `;
-                    tableBody.appendChild(row);
-                });
-
-                // Update pagination
-                updatePagination(platform, sub, subId, data.pagination);
-
-                console.log('✅ Data loaded successfully');
-
-            } catch (error) {
-                console.error("❌ Error loading data:", error);
-                tableBody.innerHTML = `<tr><td colspan="6" class="loading">Error: ${error.message}</td></tr>`;
-                if (pagination) pagination.style.display = 'none';
-            }
-        }
-
-        // UPDATE PAGINATION
-        function updatePagination(platform, sub, subId, paginationData) {
-            console.log('📄 Updating pagination:', paginationData);
-            
-            const paginationContainer = document.getElementById(`pagination-${subId}`);
-            
-            if (!paginationContainer || !paginationData) {
-                console.warn('⚠️ Pagination not found');
+        function renderPagination(container, paginationData, platform, sub, subId) {
+            if (paginationData.totalPages <= 1) {
+                container.style.display = 'none';
                 return;
             }
 
             const { currentPage, totalPages, totalItems, itemsPerPage, hasNextPage, hasPreviousPage } = paginationData;
-            
             const startItem = totalItems > 0 ? ((currentPage - 1) * itemsPerPage) + 1 : 0;
             const endItem = Math.min(currentPage * itemsPerPage, totalItems);
 
-            paginationContainer.innerHTML = `
-                <div class="pagination-info">
-                    Showing ${startItem}-${endItem} of ${totalItems} items
-                </div>
-                <div class="pagination-controls">
-                    <button onclick="goToPage('${platform}', '${sub}', '${subId}', 1)" ${!hasPreviousPage ? 'disabled' : ''}>First</button>
-                    <button onclick="goToPage('${platform}', '${sub}', '${subId}', ${currentPage - 1})" ${!hasPreviousPage ? 'disabled' : ''}>Previous</button>
-                    <span style="margin: 0 10px;">Page ${currentPage} of ${totalPages}</span>
-                    <button onclick="goToPage('${platform}', '${sub}', '${subId}', ${currentPage + 1})" ${!hasNextPage ? 'disabled' : ''}>Next</button>
-                    <button onclick="goToPage('${platform}', '${sub}', '${subId}', ${totalPages})" ${!hasNextPage ? 'disabled' : ''}>Last</button>
-                </div>
-            `;
+            const data = {
+                startItem,
+                endItem,
+                totalItems,
+                currentPage,
+                totalPages,
+                hasPreviousPage,
+                hasNextPage,
+                previousPage: currentPage - 1,
+                nextPage: currentPage + 1,
+                platform,
+                sub,
+                subId
+            };
 
-            if (totalPages <= 1) {
-                paginationContainer.style.display = 'none';
-            } else {
-                paginationContainer.style.display = 'block';
+            const template = Handlebars.compile(
+                document.getElementById('pagination-template').innerHTML
+            );
+            container.innerHTML = template(data);
+            container.style.display = 'block';
+        }
+
+        // ============================================
+        // UI INTERACTION FUNCTIONS
+        // ============================================
+        function togglePlatform(header) {
+            const content = header.nextElementSibling;
+            const icon = header.querySelector('.collapse-icon');
+            const isExpanded = content.classList.contains('expanded');
+
+            content.classList.toggle('expanded');
+            icon.textContent = isExpanded ? '▶' : '▼';
+
+            console.log('🔽 Toggled platform:', header.dataset.platform);
+        }
+
+        function toggleSub(header) {
+            const content = header.parentElement.querySelector('.sub-content');
+            const icon = header.querySelector('.collapse-icon');
+            const isExpanded = content.classList.contains('expanded');
+
+            content.classList.toggle('expanded');
+            icon.textContent = isExpanded ? '▶' : '▼';
+
+            if (!isExpanded) {
+                const tbody = content.querySelector('.data-tbody');
+                if (tbody && !tbody.innerHTML.trim()) {
+                    loadData(header.dataset.platform, header.dataset.subcategory, header.dataset.subid, 1);
+                }
+            }
+
+            console.log('🔽 Toggled sub:', header.dataset.subcategory);
+        }
+
+        async function loadData(platform, sub, subId, page = 1, search = '', state = '') {
+            console.log('📥 Loading:', { platform, sub, page, search, state });
+
+            const tbody = document.querySelector(`.data-tbody[data-subid="${subId}"]`);
+            const pagination = document.querySelector(`.group-pagination[data-subid="${subId}"]`);
+
+            if (!tbody) return;
+
+            tbody.innerHTML = '<tr><td colspan="6" class="loading">Loading...</td></tr>';
+
+            try {
+                const params = { platform, 'sub-category': sub, page, limit: 10 };
+                if (search) params.search = search;
+                if (state) params.state = state;
+
+                const result = await fetchData(params);
+
+                if (!result.data?.length) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="loading">No items found</td></tr>';
+                    if (pagination) pagination.style.display = 'none';
+                    return;
+                }
+
+                renderTableRows(tbody, result.data);
+                renderPagination(pagination, result.pagination, platform, sub, subId);
+                console.log('✅ Data loaded!');
+
+            } catch (error) {
+                console.error('❌ Load error:', error);
+                tbody.innerHTML = `<tr><td colspan="6" class="loading">Error: ${error.message}</td></tr>`;
             }
         }
 
-        // GO TO PAGE
-        function goToPage(platform, sub, subId, page) {
-            console.log('📄 Go to page:', page);
+        function searchGroup(input) {
+            const subId = input.dataset.subid;
+            const filterSelect = document.querySelector(`.filter-select[data-subid="${subId}"]`);
+            const [, platform, sub] = subId.match(/(.+?)_(.+)/) || [];
             
-            const searchInput = document.getElementById(`search-${subId}`);
-            const filterSelect = document.getElementById(`filter-${subId}`);
+            loadData(platform, sub, subId, 1, input.value.trim(), filterSelect?.value || '');
+        }
+
+        function filterGroup(select) {
+            const subId = select.dataset.subid;
+            const searchInput = document.querySelector(`.search-input[data-subid="${subId}"]`);
+            const [, platform, sub] = subId.match(/(.+?)_(.+)/) || [];
             
-            const search = searchInput ? searchInput.value.trim() : '';
-            const state = filterSelect ? filterSelect.value : '';
-
-            loadGroupData(platform, sub, subId, page, search, state);
+            loadData(platform, sub, subId, 1, searchInput?.value.trim() || '', select.value);
         }
 
-        // SEARCH GROUP
-        function searchGroup(platform, sub, subId) {
-            console.log('🔍 Search in:', platform, sub);
-            loadGroupData(platform, sub, subId, 1);
+        function goToPage(button, page) {
+            const pagination = button.closest('.group-pagination');
+            const subId = pagination.dataset.subid;
+            const [, platform, sub] = subId.match(/(.+?)_(.+)/) || [];
+            const searchInput = document.querySelector(`.search-input[data-subid="${subId}"]`);
+            const filterSelect = document.querySelector(`.filter-select[data-subid="${subId}"]`);
+            
+            loadData(platform, sub, subId, page, searchInput?.value.trim() || '', filterSelect?.value || '');
         }
 
-        // FILTER GROUP
-        function filterGroup(platform, sub, subId) {
-            console.log('🔍 Filter in:', platform, sub);
-            loadGroupData(platform, sub, subId, 1);
-        }
-
-        // MAIN FUNCTION
-        async function init() {
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('🚀 Initializing...');
+            
             try {
-                const result = await fetch_data({ limit: 0 });
+                const result = await fetchData({ limit: 0 });
                 
-                if (!result.data || result.data.length === 0) {
-                    document.getElementById('dataView').innerHTML = '<div class="loading">No data found</div>';
+                if (!result.data?.length) {
+                    document.getElementById('dataView').innerHTML = '<div class="loading">No data</div>';
                     return;
                 }
-                
-                console.log('📦 Got', result.data.length, 'items');
-                
-                const platforms = groupData(result.data, result.groupSummary);
-                renderNested(platforms);
+
+                const platforms = buildPlatformStructure(result.data, result.groupSummary);
+                renderPlatforms(platforms);
                 
             } catch (error) {
                 console.error('❌ Init error:', error);
-                document.getElementById('dataView').innerHTML = `<div class="loading" style="color: red;">Error: ${error.message}</div>`;
+                document.getElementById('dataView').innerHTML = 
+                    `<div class="loading" style="color: red;">Error: ${error.message}</div>`;
             }
-        }
-
-        // START
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 Page loaded...');
-            init();
         });
     </script>
 </body>
